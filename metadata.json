@@ -1,0 +1,8 @@
+{
+  "name": "RC Pulse",
+  "description": "RingCentral Personal Analytics Dashboard - Enterprise Desktop Analytics for RingCentral call logs, trends, and user presence.",
+  "requestFramePermissions": [],
+  "majorCapabilities": [
+    "MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"
+  ]
+}

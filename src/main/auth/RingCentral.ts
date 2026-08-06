@@ -58,6 +58,59 @@ export class RingCentralClient {
     return tokens
   }
 
+  public async exchangeJwtForToken(jwt: string) {
+    const url = `${this.config.serverUrl.replace(/\/$/, '')}/restapi/oauth/token`
+    const body = new URLSearchParams({
+      grant_type: 'urn:ietf:params:oauth:grant-type:jwt-bearer',
+      assertion: jwt
+    })
+
+    const headers: Record<string, string> = {
+      'Content-Type': 'application/x-www-form-urlencoded'
+    }
+
+    if (this.config.clientId && this.config.clientSecret) {
+      headers['Authorization'] = this.getBasicAuthHeader()
+    }
+
+    const response = await fetch(url, {
+      method: 'POST',
+      headers,
+      body: body.toString()
+    })
+
+    if (!response.ok) {
+      const errText = await response.text()
+      throw new AppError(`JWT Authentication failed: ${errText}`, 'JWT_AUTH_ERROR', response.status)
+    }
+
+    const data = await response.json()
+    const expiresAt = Date.now() + ((data.expires_in || 3600) * 1000)
+
+    const tokens = {
+      accessToken: data.access_token,
+      refreshToken: data.refresh_token || '',
+      expiresAt,
+      tokenType: data.token_type || 'Bearer',
+      scope: data.scope || ''
+    }
+
+    await TokenStore.saveTokens(tokens)
+    return tokens
+  }
+
+  public async saveDirectToken(accessToken: string, refreshToken = '', expiresAt = Date.now() + 3600 * 1000) {
+    const tokens = {
+      accessToken,
+      refreshToken,
+      expiresAt,
+      tokenType: 'Bearer',
+      scope: ''
+    }
+    await TokenStore.saveTokens(tokens)
+    return tokens
+  }
+
   public async refreshAccessToken() {
     const tokens = await TokenStore.getTokens()
     if (!tokens || !tokens.refreshToken) {

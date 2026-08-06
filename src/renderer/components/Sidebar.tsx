@@ -1,11 +1,11 @@
 import React from 'react'
-import { LayoutDashboard, PhoneCall, Settings as SettingsIcon, Radio, ShieldCheck } from 'lucide-react'
+import { LayoutDashboard, PhoneCall, Settings as SettingsIcon, Radio, ShieldCheck, LogOut } from 'lucide-react'
 import { useDashboardStore, NavTab } from '../store/dashboardStore'
 import { useAuth } from '../hooks/useAuth'
 
 export const Sidebar: React.FC = () => {
   const { activeTab, setActiveTab } = useDashboardStore()
-  const { user } = useAuth()
+  const { user, handleLogout, isDemoMode } = useAuth()
 
   const navItems: { id: NavTab; label: string; icon: React.FC<{ className?: string }> }[] = [
     { id: 'dashboard', label: 'Dashboard', icon: LayoutDashboard },
@@ -47,18 +47,28 @@ export const Sidebar: React.FC = () => {
 
       {/* Footer User & API Status Widget */}
       <div className="p-4 border-t border-[#27272a]">
-        <div className="flex items-center gap-3 p-1.5 rounded-lg">
-          {user?.avatarUrl ? (
-            <img src={user.avatarUrl} alt={user.name} className="w-8 h-8 rounded-full object-cover border border-[#27272a]" />
-          ) : (
-            <div className="w-8 h-8 rounded-full bg-[#27272a] text-white font-semibold text-xs flex items-center justify-center shrink-0">
-              {user?.firstName?.[0] || 'A'}
+        <div className="flex items-center justify-between gap-2 p-1.5 rounded-lg bg-[#18181b]/50 border border-[#27272a]/60">
+          <div className="flex items-center gap-2.5 min-w-0">
+            {user?.avatarUrl ? (
+              <img src={user.avatarUrl} alt={user.name} className="w-8 h-8 rounded-full object-cover border border-[#27272a]" />
+            ) : (
+              <div className="w-8 h-8 rounded-full bg-[#27272a] text-white font-semibold text-xs flex items-center justify-center shrink-0">
+                {user?.firstName?.[0] || 'A'}
+              </div>
+            )}
+            <div className="min-w-0 flex-1">
+              <div className="text-xs font-semibold text-white truncate">{user?.name || 'User'}</div>
+              <div className="text-[10px] text-[#71717a] truncate">Ext. {user?.extensionNumber || '101'}</div>
             </div>
-          )}
-          <div className="min-w-0 flex-1">
-            <div className="text-xs font-semibold text-white truncate">{user?.name || 'Alex Rivera'}</div>
-            <div className="text-[11px] text-[#71717a] truncate">Ext. {user?.extensionNumber || '101'}</div>
           </div>
+
+          <button
+            onClick={handleLogout}
+            title="Sign Out / Switch Account"
+            className="p-1.5 rounded-lg text-[#a1a1aa] hover:text-rose-400 hover:bg-rose-500/10 transition-colors cursor-pointer shrink-0"
+          >
+            <LogOut className="w-3.5 h-3.5" />
+          </button>
         </div>
 
         <div className="mt-3 pt-2.5 border-t border-[#27272a]/60 flex items-center justify-between text-[11px] text-[#71717a]">
@@ -67,7 +77,7 @@ export const Sidebar: React.FC = () => {
             <span>API Online</span>
           </span>
           <span className="flex items-center gap-1 text-[#22c55e] font-mono text-[10px]">
-            <ShieldCheck className="w-3 h-3 text-indigo-400" /> PKCE
+            <ShieldCheck className="w-3 h-3 text-indigo-400" /> {isDemoMode ? 'Demo' : 'Live'}
           </span>
         </div>
       </div>

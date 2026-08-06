@@ -3,6 +3,59 @@ import { useAuthStore } from '../store/authStore'
 export function useAuth() {
   const { isAuthenticated, isLoading, user, error, isDemoMode, setUser, logout, setDemoMode } = useAuthStore()
 
+  const loginWithRealAccount = async (params: {
+    clientId?: string
+    clientSecret?: string
+    serverUrl?: string
+    jwtToken?: string
+    accessToken?: string
+  }) => {
+    try {
+      useAuthStore.getState().setLoading(true)
+      useAuthStore.getState().setError(null)
+
+      const res = await fetch('/api/auth/connect', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(params)
+      })
+
+      const data = await res.json()
+
+      if (!res.ok || !data.success) {
+        throw new Error(data.error || 'Failed to authenticate with RingCentral API')
+      }
+
+      setDemoMode(false)
+      setUser(data.user)
+      useAuthStore.getState().setTokens(data.accessToken || 'real_token', null, Date.now() + 3600000)
+    } catch (err: any) {
+      useAuthStore.getState().setError(err.message || 'RingCentral sign-in failed')
+      throw err
+    } finally {
+      useAuthStore.getState().setLoading(false)
+    }
+  }
+
+  const loginWithDemo = async () => {
+    try {
+      useAuthStore.getState().setLoading(true)
+      useAuthStore.getState().setError(null)
+
+      const res = await fetch('/api/auth/demo', { method: 'POST' })
+      const data = await res.json()
+
+      if (data.success) {
+        setDemoMode(true)
+        setUser(data.user)
+      }
+    } catch (err: any) {
+      useAuthStore.getState().setError(err.message || 'Demo login failed')
+    } finally {
+      useAuthStore.getState().setLoading(false)
+    }
+  }
+
   const loginWithOAuth = async () => {
     try {
       useAuthStore.getState().setLoading(true)
@@ -11,20 +64,14 @@ export function useAuth() {
       if (window.electron) {
         await window.electron.auth.login()
       } else {
-        // Web fallback
         const res = await fetch('/api/auth/login', { method: 'POST' })
         const data = await res.json()
-        if (data.success) {
-          // Trigger demo profile or real profile
-          const userRes = await fetch('/api/user/me')
-          const userData = await userRes.json()
-          if (userData.success) {
-            setUser(userData.user)
-          }
+        if (data.authUrl) {
+          window.open(data.authUrl, '_blank')
         }
       }
     } catch (err: any) {
-      useAuthStore.getState().setError(err.message || 'Login failed')
+      useAuthStore.getState().setError(err.message || 'OAuth flow failed')
     } finally {
       useAuthStore.getState().setLoading(false)
     }
@@ -32,14 +79,17 @@ export function useAuth() {
 
   const handleLogout = async () => {
     try {
+      useAuthStore.getState().setLoading(true)
       if (window.electron) {
         await window.electron.auth.logout()
       } else {
         await fetch('/api/auth/logout', { method: 'POST' })
       }
-      logout()
     } catch (err) {
+      console.warn('Logout warning:', err)
+    } finally {
       logout()
+      useAuthStore.getState().setLoading(false)
     }
   }
 
@@ -49,6 +99,8 @@ export function useAuth() {
     user,
     error,
     isDemoMode,
+    loginWithRealAccount,
+    loginWithDemo,
     loginWithOAuth,
     handleLogout,
     setDemoMode

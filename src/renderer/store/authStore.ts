@@ -46,6 +46,7 @@ export const useAuthStore = create<AuthState & AuthStoreActions>((set) => ({
   setDemoMode: (isDemoMode) => set({ isDemoMode }),
   logout: () => set({
     isAuthenticated: false,
+    isDemoMode: false,
     user: null,
     accessToken: null,
     refreshToken: null,

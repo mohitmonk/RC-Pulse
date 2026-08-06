@@ -21,13 +21,24 @@ async function startServer() {
     res.json({ status: 'ok', app: 'RC Pulse', version: '1.0.0' })
   })
 
+  // App Session State
+  let activeRcClient: RingCentralClient | null = null
+  let isDemoActive = false
+
   // User Profile
   app.get('/api/user/me', async (req, res) => {
     try {
-      const user = await UserService.getCurrentUser(null)
-      res.json({ success: true, user })
+      if (isDemoActive || !activeRcClient) {
+        // Return demo user if demo mode or unauthenticated fallback
+        const user = UserService.getDemoUser()
+        return res.json({ success: true, user, isDemoMode: isDemoActive || !activeRcClient })
+      }
+      
+      const user = await UserService.getCurrentUser(activeRcClient)
+      res.json({ success: true, user, isDemoMode: false })
     } catch (err: any) {
-      res.status(500).json({ success: false, error: err.message })
+      console.warn('[RC Pulse] Failed to fetch user from RingCentral API, defaulting to demo user:', err.message)
+      res.json({ success: true, user: UserService.getDemoUser(), isDemoMode: true, warning: err.message })
     }
   })
 
@@ -38,57 +49,65 @@ async function startServer() {
       const customStart = req.query.startDate as string
       const customEnd = req.query.endDate as string
 
-      const calls = await CallLogService.getCallLogs(null, filterType, customStart, customEnd)
+      const clientToUse = isDemoActive ? null : activeRcClient
+      const calls = await CallLogService.getCallLogs(clientToUse, filterType, customStart, customEnd)
       const analytics = AnalyticsService.calculateAnalytics(calls)
 
       res.json({
         success: true,
         calls,
-        analytics
+        analytics,
+        isDemoMode: isDemoActive || !activeRcClient
       })
     } catch (err: any) {
       res.status(500).json({ success: false, error: err.message })
     }
   })
 
-  // CSV Export
-  app.post('/api/calls/export/csv', (req, res) => {
+  // Auth Routes
+  app.post('/api/auth/connect', async (req, res) => {
     try {
-      const { calls } = req.body
-      const csv = ExportService.exportToCSV(calls || [])
-      res.setHeader('Content-Type', 'text/csv')
-      res.setHeader('Content-Disposition', 'attachment; filename="rc_pulse_call_logs.csv"')
-      res.send(csv)
+      const { clientId, clientSecret, serverUrl, jwtToken, accessToken } = req.body
+      const targetServer = serverUrl || 'https://platform.devtest.ringcentral.com'
+      
+      const client = new RingCentralClient({
+        clientId: clientId || '',
+        clientSecret: clientSecret || '',
+        serverUrl: targetServer
+      })
+
+      if (jwtToken) {
+        await client.exchangeJwtForToken(jwtToken)
+      } else if (accessToken) {
+        await client.saveDirectToken(accessToken)
+      }
+
+      activeRcClient = client
+      isDemoActive = false
+
+      // Fetch real user profile from RingCentral API to confirm connection
+      const realUser = await UserService.getCurrentUser(client)
+
+      res.json({
+        success: true,
+        user: realUser,
+        isDemoMode: false
+      })
     } catch (err: any) {
-      res.status(500).json({ success: false, error: err.message })
+      res.status(400).json({ success: false, error: err.message || 'Authentication with RingCentral failed' })
     }
   })
 
-  // Excel Export
-  app.post('/api/calls/export/excel', async (req, res) => {
-    try {
-      const { calls, summary } = req.body
-      const buffer = await ExportService.exportToExcel(calls || [], summary || {})
-      res.setHeader('Content-Type', 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet')
-      res.setHeader('Content-Disposition', 'attachment; filename="rc_pulse_analytics.xlsx"')
-      res.send(buffer)
-    } catch (err: any) {
-      res.status(500).json({ success: false, error: err.message })
-    }
+  app.post('/api/auth/demo', (req, res) => {
+    activeRcClient = null
+    isDemoActive = true
+    res.json({
+      success: true,
+      user: UserService.getDemoUser(),
+      isDemoMode: true
+    })
   })
 
-  // Settings
-  app.get('/api/settings', (req, res) => {
-    const settings = SettingsService.getSettings()
-    res.json({ success: true, settings })
-  })
-
-  app.post('/api/settings', (req, res) => {
-    const settings = SettingsService.updateSettings(req.body)
-    res.json({ success: true, settings })
-  })
-
-  // Auth mock/sandbox toggle
   app.post('/api/auth/login', (req, res) => {
     res.json({
       success: true,
@@ -96,7 +115,10 @@ async function startServer() {
     })
   })
 
-  app.post('/api/auth/logout', (req, res) => {
+  app.post('/api/auth/logout', async (req, res) => {
+    activeRcClient = null
+    isDemoActive = false
+    await TokenStore.clearTokens()
     res.json({ success: true })
   })
 

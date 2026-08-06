@@ -49,9 +49,19 @@ export const Header: React.FC = () => {
 
       {/* Right: Date Filter, Actions & Profile */}
       <div className="flex items-center gap-3">
-        {isDemoMode && (
-          <span className="hidden sm:inline-flex items-center gap-1.5 px-2.5 py-1 rounded-md bg-indigo-500/10 border border-indigo-500/20 text-indigo-300 text-xs font-medium">
-            <Shield className="w-3 h-3 text-indigo-400" /> Demo Sandbox
+        {isDemoMode ? (
+          <button
+            onClick={handleLogout}
+            className="inline-flex items-center gap-1.5 px-3 py-1 rounded-md bg-indigo-500/10 hover:bg-indigo-500/20 border border-indigo-500/30 text-indigo-300 hover:text-indigo-200 text-xs font-medium transition-colors cursor-pointer"
+            title="Click to exit Demo Mode & Connect Real Account"
+          >
+            <Shield className="w-3.5 h-3.5 text-indigo-400" />
+            <span>Demo Sandbox</span>
+            <span className="text-[10px] opacity-75 underline ml-1">Switch Account</span>
+          </button>
+        ) : (
+          <span className="hidden sm:inline-flex items-center gap-1.5 px-2.5 py-1 rounded-md bg-emerald-500/10 border border-emerald-500/20 text-emerald-400 text-xs font-medium">
+            <Circle className="w-2 h-2 fill-emerald-400" /> Live Account
           </span>
         )}
 
@@ -98,18 +108,26 @@ export const Header: React.FC = () => {
               <div className="fixed inset-0 z-20" onClick={() => setUserMenuOpen(false)} />
               <div className="absolute right-0 mt-2 w-56 rounded-xl bg-[#09090b] border border-[#27272a] shadow-2xl z-30 p-2 text-zinc-200">
                 <div className="p-2.5 border-b border-[#27272a] mb-1">
-                  <div className="text-xs font-semibold text-white">{user?.name}</div>
-                  <div className="text-[11px] text-[#71717a]">{user?.email}</div>
-                  <div className="mt-2 flex items-center gap-1.5 text-[10px] text-emerald-400 bg-emerald-500/10 border border-emerald-500/20 px-2 py-0.5 rounded">
-                    <Circle className="w-2 h-2 fill-emerald-400" /> Status: {user?.presenceStatus || 'Available'}
+                  <div className="text-xs font-semibold text-white truncate">{user?.name}</div>
+                  <div className="text-[11px] text-[#71717a] truncate">{user?.email}</div>
+                  <div className="mt-2 flex items-center justify-between text-[10px]">
+                    <span className="flex items-center gap-1 text-emerald-400 bg-emerald-500/10 border border-emerald-500/20 px-2 py-0.5 rounded">
+                      <Circle className="w-2 h-2 fill-emerald-400" /> {user?.presenceStatus || 'Available'}
+                    </span>
+                    <span className="text-zinc-400 font-mono">
+                      {isDemoMode ? 'Demo Sandbox' : 'Live RingCentral'}
+                    </span>
                   </div>
                 </div>
 
                 <button
                   onClick={handleLogout}
-                  className="w-full flex items-center gap-2 px-3 py-2 text-xs text-rose-400 hover:bg-rose-500/10 rounded-lg transition-colors cursor-pointer"
+                  className="w-full flex items-center justify-between px-3 py-2 text-xs text-rose-400 hover:bg-rose-500/10 rounded-lg transition-colors cursor-pointer font-medium"
                 >
-                  <LogOut className="w-3.5 h-3.5" /> Sign Out
+                  <span className="flex items-center gap-2">
+                    <LogOut className="w-3.5 h-3.5" />
+                    <span>Sign Out / Switch Account</span>
+                  </span>
                 </button>
               </div>
             </>

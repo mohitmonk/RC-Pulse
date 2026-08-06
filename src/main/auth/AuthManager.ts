@@ -12,11 +12,43 @@ export class AuthManager {
   private codeVerifier: string = ''
   private oauthState: string = ''
 
-  public initialize(config: { clientId: string; clientSecret: string; serverUrl: string }) {
-    if (config.clientId && config.clientSecret) {
-      this.client = new RingCentralClient(config)
-      Logger.info('AuthManager initialized with RingCentral API client')
+  public initialize(config: { clientId?: string; clientSecret?: string; serverUrl?: string }) {
+    const serverUrl = config.serverUrl || process.env.RINGCENTRAL_SERVER_URL || 'https://platform.devtest.ringcentral.com'
+    const clientId = config.clientId || process.env.RINGCENTRAL_CLIENT_ID || ''
+    const clientSecret = config.clientSecret || process.env.RINGCENTRAL_CLIENT_SECRET || ''
+
+    this.client = new RingCentralClient({ clientId, clientSecret, serverUrl })
+    Logger.info(`AuthManager initialized for server: ${serverUrl}`)
+  }
+
+  public async loginWithJwt(params: { clientId?: string; clientSecret?: string; serverUrl?: string; jwt: string }) {
+    this.initialize({
+      clientId: params.clientId,
+      clientSecret: params.clientSecret,
+      serverUrl: params.serverUrl
+    })
+
+    if (!this.client) {
+      throw new AppError('Failed to initialize RingCentral client', 'CLIENT_INIT_FAILED')
     }
+
+    const tokens = await this.client.exchangeJwtForToken(params.jwt)
+    return tokens
+  }
+
+  public async loginWithDirectToken(params: { clientId?: string; clientSecret?: string; serverUrl?: string; accessToken: string; refreshToken?: string }) {
+    this.initialize({
+      clientId: params.clientId,
+      clientSecret: params.clientSecret,
+      serverUrl: params.serverUrl
+    })
+
+    if (!this.client) {
+      throw new AppError('Failed to initialize RingCentral client', 'CLIENT_INIT_FAILED')
+    }
+
+    const tokens = await this.client.saveDirectToken(params.accessToken, params.refreshToken)
+    return tokens
   }
 
   public getClient(): RingCentralClient {

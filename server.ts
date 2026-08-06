@@ -8,6 +8,8 @@ import { ExportService } from './src/main/services/ExportService'
 import { SettingsService } from './src/main/services/SettingsService'
 import { DateFilterType } from './src/types/call'
 
+import fs from 'fs'
+
 async function startServer() {
   const app = express()
   const PORT = 3000
@@ -98,15 +100,28 @@ async function startServer() {
     res.json({ success: true })
   })
 
-  // Vite middleware in dev or static files in production
-  if (process.env.NODE_ENV !== 'production') {
+  // Determine production vs dev mode
+  const isProduction =
+    process.env.NODE_ENV === 'production' || Boolean(process.versions && process.versions.electron)
+
+  if (!isProduction) {
     const vite = await createViteServer({
       server: { middlewareMode: true },
       appType: 'spa'
     })
     app.use(vite.middlewares)
   } else {
-    const distPath = path.join(process.cwd(), 'dist')
+    let distPath = __dirname
+    if (!fs.existsSync(path.join(distPath, 'index.html'))) {
+      if (fs.existsSync(path.join(process.cwd(), 'dist', 'index.html'))) {
+        distPath = path.join(process.cwd(), 'dist')
+      } else if (fs.existsSync(path.join(__dirname, 'dist', 'index.html'))) {
+        distPath = path.join(__dirname, 'dist')
+      } else if (fs.existsSync(path.join(__dirname, '../dist', 'index.html'))) {
+        distPath = path.join(__dirname, '../dist')
+      }
+    }
+
     app.use(express.static(distPath))
     app.get('*', (req, res) => {
       res.sendFile(path.join(distPath, 'index.html'))

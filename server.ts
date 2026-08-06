@@ -113,9 +113,24 @@ async function startServer() {
     })
   }
 
-  app.listen(PORT, '0.0.0.0', () => {
-    console.log(`[RC Pulse] Express Server running on http://0.0.0.0:${PORT}`)
-  })
+  const initialPort = process.env.PORT ? parseInt(process.env.PORT, 10) : 3000
+
+  const startListening = (port: number, maxTries = 10) => {
+    const server = app.listen(port, '0.0.0.0', () => {
+      console.log(`[RC Pulse] Express Server running on http://0.0.0.0:${port}`)
+    })
+
+    server.on('error', (err: any) => {
+      if (err.code === 'EADDRINUSE' && maxTries > 0) {
+        console.warn(`[RC Pulse] Port ${port} is in use, retrying on port ${port + 1}...`)
+        startListening(port + 1, maxTries - 1)
+      } else {
+        console.error('[RC Pulse] Express Server error:', err)
+      }
+    })
+  }
+
+  startListening(initialPort)
 }
 
 startServer()

@@ -116,8 +116,45 @@ async function startServer() {
   const initialPort = process.env.PORT ? parseInt(process.env.PORT, 10) : 3000
 
   const startListening = (port: number, maxTries = 10) => {
-    const server = app.listen(port, '0.0.0.0', () => {
-      console.log(`[RC Pulse] Express Server running on http://0.0.0.0:${port}`)
+    const server = app.listen(port, '0.0.0.0', async () => {
+      console.log(`[RC Pulse] Express Server running on http://localhost:${port}`)
+
+      // If running inside Electron desktop container, launch BrowserWindow
+      if (process.versions && process.versions.electron) {
+        try {
+          const electron = await import('electron')
+          const electronApp = electron.app || electron.default?.app
+          const BrowserWindow = electron.BrowserWindow || electron.default?.BrowserWindow
+
+          if (electronApp && BrowserWindow) {
+            await electronApp.whenReady()
+
+            const win = new BrowserWindow({
+              width: 1280,
+              height: 800,
+              minWidth: 900,
+              minHeight: 600,
+              title: 'RC Pulse - RingCentral Analytics Dashboard',
+              autoHideMenuBar: true,
+              backgroundColor: '#09090b',
+              webPreferences: {
+                nodeIntegration: true,
+                contextIsolation: false
+              }
+            })
+
+            win.loadURL(`http://localhost:${port}`)
+
+            electronApp.on('window-all-closed', () => {
+              if (process.platform !== 'darwin') {
+                electronApp.quit()
+              }
+            })
+          }
+        } catch (err) {
+          console.error('[RC Pulse] Failed to open Electron window:', err)
+        }
+      }
     })
 
     server.on('error', (err: any) => {

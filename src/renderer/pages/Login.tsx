@@ -17,7 +17,8 @@ export const Login: React.FC = () => {
   const [copiedUri, setCopiedUri] = useState(false)
   const [jwtToken, setJwtToken] = useState('')
   const [accessToken, setAccessToken] = useState('')
-  const [showAdvanced, setShowAdvanced] = useState(false)
+  const [authMode, setAuthMode] = useState<'oauth' | 'jwt'>('jwt')
+  const [showAdvanced, setShowAdvanced] = useState(true)
   const [formError, setFormError] = useState<string | null>(null)
   const [isWaitingOAuth, setIsWaitingOAuth] = useState(false)
 
@@ -213,179 +214,223 @@ export const Login: React.FC = () => {
           </div>
         )}
 
-        {/* Primary Form: Browser Sign-In */}
-        <form onSubmit={handleBrowserLogin} className="space-y-4">
-          <div>
-            <label className="text-xs font-medium text-[#a1a1aa] block mb-1.5 flex items-center gap-1.5">
-              <Globe className="w-3.5 h-3.5 text-blue-400" />
-              <span>RingCentral Environment</span>
-            </label>
-            <select
-              value={serverUrl}
-              onChange={(e) => setServerUrl(e.target.value)}
-              className="w-full bg-[#18181b] border border-[#27272a] rounded-xl px-3.5 py-2.5 text-xs text-white focus:outline-none focus:border-blue-500 cursor-pointer"
-            >
-              <option value="https://platform.ringcentral.com">Production (platform.ringcentral.com)</option>
-              <option value="https://platform.devtest.ringcentral.com">Sandbox (devtest.ringcentral.com)</option>
-            </select>
-          </div>
+        {/* Auth Mode Tabs */}
+        <div className="grid grid-cols-2 p-1 bg-[#18181b] rounded-xl border border-[#27272a]">
+          <button
+            type="button"
+            onClick={() => { setAuthMode('jwt'); setFormError(null); }}
+            className={`py-2 text-xs font-medium rounded-lg transition-all flex items-center justify-center gap-1.5 cursor-pointer ${
+              authMode === 'jwt'
+                ? 'bg-blue-600 text-white shadow-md'
+                : 'text-zinc-400 hover:text-white'
+            }`}
+          >
+            <Key className="w-3.5 h-3.5" />
+            <span>JWT Token</span>
+          </button>
+          <button
+            type="button"
+            onClick={() => { setAuthMode('oauth'); setFormError(null); }}
+            className={`py-2 text-xs font-medium rounded-lg transition-all flex items-center justify-center gap-1.5 cursor-pointer ${
+              authMode === 'oauth'
+                ? 'bg-blue-600 text-white shadow-md'
+                : 'text-zinc-400 hover:text-white'
+            }`}
+          >
+            <Globe className="w-3.5 h-3.5" />
+            <span>Browser OAuth</span>
+          </button>
+        </div>
 
-          <div className="grid grid-cols-2 gap-3">
-            <div>
-              <div className="flex items-center justify-between mb-1">
-                <label className="text-xs font-medium text-[#a1a1aa]">
+        {/* Environment Selection */}
+        <div>
+          <label className="text-xs font-medium text-[#a1a1aa] block mb-1.5 flex items-center gap-1.5">
+            <Globe className="w-3.5 h-3.5 text-blue-400" />
+            <span>RingCentral Environment</span>
+          </label>
+          <select
+            value={serverUrl}
+            onChange={(e) => setServerUrl(e.target.value)}
+            className="w-full bg-[#18181b] border border-[#27272a] rounded-xl px-3.5 py-2.5 text-xs text-white focus:outline-none focus:border-blue-500 cursor-pointer"
+          >
+            <option value="https://platform.ringcentral.com">Production (platform.ringcentral.com)</option>
+            <option value="https://platform.devtest.ringcentral.com">Sandbox (devtest.ringcentral.com)</option>
+          </select>
+        </div>
+
+        {authMode === 'jwt' ? (
+          /* JWT Auth Form */
+          <form onSubmit={handleTokenLogin} className="space-y-4">
+            <div className="bg-blue-500/10 border border-blue-500/20 rounded-xl p-3 text-xs text-blue-300 space-y-1">
+              <p className="font-semibold text-blue-200">🔑 How to get your RingCentral JWT Token:</p>
+              <ol className="list-decimal list-inside space-y-0.5 text-[11px] text-zinc-300">
+                <li>Log in to <a href="https://developer.ringcentral.com" target="_blank" rel="noreferrer" className="text-blue-400 underline font-medium">RingCentral Developer Console</a>.</li>
+                <li>Go to <strong>My Account</strong> → <strong>JWT Tokens</strong>.</li>
+                <li>Click <strong>Create JWT Token</strong> and copy the token string.</li>
+                <li>Paste it below along with your App Key & Secret!</li>
+              </ol>
+            </div>
+
+            <div className="grid grid-cols-2 gap-3">
+              <div>
+                <label className="text-xs font-medium text-[#a1a1aa] block mb-1">
                   Client ID / App Key
                 </label>
+                <input
+                  type="text"
+                  value={clientId}
+                  onChange={(e) => setClientId(e.target.value)}
+                  placeholder="App Key"
+                  className="w-full bg-[#18181b] border border-[#27272a] rounded-xl px-3 py-2 text-xs text-white placeholder:text-zinc-600 focus:outline-none focus:border-blue-500 font-mono"
+                />
+              </div>
+              <div>
+                <label className="text-xs font-medium text-[#a1a1aa] block mb-1">
+                  Client Secret
+                </label>
+                <input
+                  type="password"
+                  value={clientSecret}
+                  onChange={(e) => setClientSecret(e.target.value)}
+                  placeholder="App Secret"
+                  className="w-full bg-[#18181b] border border-[#27272a] rounded-xl px-3 py-2 text-xs text-white placeholder:text-zinc-600 focus:outline-none focus:border-blue-500 font-mono"
+                />
+              </div>
+            </div>
+
+            <div>
+              <div className="flex items-center justify-between mb-1">
+                <label className="text-xs font-medium text-[#a1a1aa]">RingCentral Personal JWT Token</label>
+                <a
+                  href="https://developer.ringcentral.com/my-account.html#/applications"
+                  target="_blank"
+                  rel="noreferrer"
+                  className="text-[10px] text-blue-400 hover:underline flex items-center gap-1"
+                >
+                  <span>Open Developer Console</span> <ExternalLink className="w-2.5 h-2.5" />
+                </a>
+              </div>
+              <textarea
+                value={jwtToken}
+                onChange={(e) => setJwtToken(e.target.value)}
+                placeholder="Paste your RingCentral Personal JWT Token here (starts with eyJ...)..."
+                rows={3}
+                className="w-full bg-[#18181b] border border-[#27272a] rounded-xl px-3.5 py-2.5 text-xs text-white placeholder:text-zinc-600 focus:outline-none focus:border-blue-500 font-mono resize-none leading-relaxed"
+              />
+            </div>
+
+            <button
+              type="submit"
+              disabled={isLoading}
+              className="w-full flex items-center justify-center gap-2 py-3 px-4 bg-gradient-to-r from-blue-600 to-indigo-600 hover:from-blue-500 hover:to-indigo-500 text-white font-semibold text-xs rounded-xl shadow-lg shadow-blue-600/20 transition-all cursor-pointer disabled:opacity-50"
+            >
+              {isLoading ? (
+                <RefreshCcw className="w-4 h-4 animate-spin text-white" />
+              ) : (
+                <>
+                  <Key className="w-4 h-4" />
+                  <span>Connect Account via JWT Token</span>
+                  <ArrowRight className="w-4 h-4 ml-1" />
+                </>
+              )}
+            </button>
+          </form>
+        ) : (
+          /* Primary Form: Browser Sign-In */
+          <form onSubmit={handleBrowserLogin} className="space-y-4">
+            <div className="grid grid-cols-2 gap-3">
+              <div>
+                <div className="flex items-center justify-between mb-1">
+                  <label className="text-xs font-medium text-[#a1a1aa]">
+                    Client ID / App Key
+                  </label>
+                </div>
+                <input
+                  type="text"
+                  value={clientId}
+                  onChange={(e) => setClientId(e.target.value)}
+                  placeholder="App Key"
+                  className="w-full bg-[#18181b] border border-[#27272a] rounded-xl px-3 py-2 text-xs text-white placeholder:text-zinc-600 focus:outline-none focus:border-blue-500 font-mono"
+                />
+              </div>
+              <div>
+                <div className="flex items-center justify-between mb-1">
+                  <label className="text-xs font-medium text-[#a1a1aa]">
+                    Client Secret
+                  </label>
+                </div>
+                <input
+                  type="password"
+                  value={clientSecret}
+                  onChange={(e) => setClientSecret(e.target.value)}
+                  placeholder="App Secret"
+                  className="w-full bg-[#18181b] border border-[#27272a] rounded-xl px-3 py-2 text-xs text-white placeholder:text-zinc-600 focus:outline-none focus:border-blue-500 font-mono"
+                />
+              </div>
+            </div>
+
+            <div>
+              <div className="flex items-center justify-between mb-1">
+                <label className="text-xs font-medium text-[#a1a1aa] flex items-center gap-1">
+                  <span>OAuth Redirect URI</span>
+                </label>
+                <div className="flex items-center gap-2">
+                  <button
+                    type="button"
+                    onClick={() => setRedirectUri('http://localhost:47831/callback')}
+                    className="text-[10px] text-zinc-400 hover:text-white underline cursor-pointer"
+                  >
+                    Local (47831)
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => setRedirectUri(`${window.location.origin}/oauth/callback`)}
+                    className="text-[10px] text-blue-400 hover:underline cursor-pointer"
+                  >
+                    App Origin
+                  </button>
+                </div>
               </div>
               <input
                 type="text"
-                value={clientId}
-                onChange={(e) => setClientId(e.target.value)}
-                placeholder="App Key"
-                className="w-full bg-[#18181b] border border-[#27272a] rounded-xl px-3 py-2 text-xs text-white placeholder:text-zinc-600 focus:outline-none focus:border-blue-500 font-mono"
+                value={redirectUri}
+                onChange={(e) => setRedirectUri(e.target.value)}
+                placeholder="e.g. http://localhost:47831/callback"
+                className="w-full bg-[#18181b] border border-[#27272a] rounded-xl px-3.5 py-2 text-xs text-white/90 placeholder:text-zinc-600 focus:outline-none focus:border-blue-500 font-mono text-[11px]"
               />
             </div>
-            <div>
-              <div className="flex items-center justify-between mb-1">
-                <label className="text-xs font-medium text-[#a1a1aa]">
-                  Client Secret
-                </label>
-              </div>
-              <input
-                type="password"
-                value={clientSecret}
-                onChange={(e) => setClientSecret(e.target.value)}
-                placeholder="App Secret"
-                className="w-full bg-[#18181b] border border-[#27272a] rounded-xl px-3 py-2 text-xs text-white placeholder:text-zinc-600 focus:outline-none focus:border-blue-500 font-mono"
-              />
-            </div>
-          </div>
 
-          <div>
-            <div className="flex items-center justify-between mb-1">
-              <label className="text-xs font-medium text-[#a1a1aa] flex items-center gap-1">
-                <span>OAuth Redirect URI</span>
-              </label>
-              <div className="flex items-center gap-2">
-                <button
-                  type="button"
-                  onClick={() => setRedirectUri('http://localhost:47831/callback')}
-                  className="text-[10px] text-zinc-400 hover:text-white underline cursor-pointer"
-                >
-                  Local (47831)
-                </button>
-                <button
-                  type="button"
-                  onClick={() => setRedirectUri(`${window.location.origin}/oauth/callback`)}
-                  className="text-[10px] text-blue-400 hover:underline cursor-pointer"
-                >
-                  App Origin
-                </button>
-              </div>
-            </div>
-            <input
-              type="text"
-              value={redirectUri}
-              onChange={(e) => setRedirectUri(e.target.value)}
-              placeholder="e.g. http://localhost:47831/callback"
-              className="w-full bg-[#18181b] border border-[#27272a] rounded-xl px-3.5 py-2 text-xs text-white/90 placeholder:text-zinc-600 focus:outline-none focus:border-blue-500 font-mono text-[11px]"
-            />
-            <p className="text-[10px] text-[#71717a] mt-1.5 leading-normal">
-              📌 RingCentral registered URI: <code className="text-blue-400 font-mono">http://localhost:47831/callback</code>
-            </p>
-          </div>
+            <button
+              type="submit"
+              disabled={isLoading || isCheckingSession}
+              className="w-full flex items-center justify-center gap-2 py-3 px-4 bg-gradient-to-r from-blue-600 to-indigo-600 hover:from-blue-500 hover:to-indigo-500 text-white font-semibold text-xs rounded-xl shadow-lg shadow-blue-600/20 transition-all cursor-pointer disabled:opacity-50"
+            >
+              {isLoading ? (
+                <RefreshCcw className="w-4 h-4 animate-spin text-white" />
+              ) : (
+                <>
+                  <Globe className="w-4 h-4" />
+                  <span>Sign in via Browser (RingCentral OAuth)</span>
+                  <ArrowRight className="w-4 h-4 ml-1" />
+                </>
+              )}
+            </button>
 
-          {/* Hero Action Button: Sign in via Browser */}
-          <button
-            type="submit"
-            disabled={isLoading || isCheckingSession}
-            className="w-full flex items-center justify-center gap-2 py-3 px-4 bg-gradient-to-r from-blue-600 to-indigo-600 hover:from-blue-500 hover:to-indigo-500 text-white font-semibold text-xs rounded-xl shadow-lg shadow-blue-600/20 transition-all cursor-pointer disabled:opacity-50"
-          >
-            {isLoading ? (
-              <RefreshCcw className="w-4 h-4 animate-spin text-white" />
-            ) : (
-              <>
-                <Globe className="w-4 h-4" />
-                <span>Sign in via Browser (RingCentral OAuth)</span>
-                <ArrowRight className="w-4 h-4 ml-1" />
-              </>
-            )}
-          </button>
-
-          {/* Quick Check Session button */}
-          <button
-            type="button"
-            onClick={checkSessionNow}
-            disabled={isCheckingSession}
-            className="w-full py-2.5 px-3 bg-[#18181b] hover:bg-[#27272a] text-[#e4e4e7] border border-[#27272a] text-xs font-medium rounded-xl transition-all flex items-center justify-center gap-2 cursor-pointer disabled:opacity-50"
-          >
-            {isCheckingSession ? (
-              <RefreshCcw className="w-3.5 h-3.5 animate-spin text-blue-400" />
-            ) : (
-              <RefreshCcw className="w-3.5 h-3.5 text-emerald-400" />
-            )}
-            <span>Completed Sign In? Enter Dashboard Now</span>
-          </button>
-        </form>
-
-        {/* Collapsible Token Options */}
-        <div className="border-t border-[#27272a] pt-4">
-          <button
-            type="button"
-            onClick={() => setShowAdvanced(!showAdvanced)}
-            className="w-full flex items-center justify-between text-xs font-medium text-[#a1a1aa] hover:text-white py-1 cursor-pointer transition-colors"
-          >
-            <span className="flex items-center gap-1.5">
-              <Key className="w-3.5 h-3.5 text-zinc-500" />
-              <span>Sign in with JWT or Direct Access Token</span>
-            </span>
-            {showAdvanced ? <ChevronUp className="w-4 h-4" /> : <ChevronDown className="w-4 h-4" />}
-          </button>
-
-          {showAdvanced && (
-            <form onSubmit={handleTokenLogin} className="mt-3 space-y-3 bg-[#18181b]/50 border border-[#27272a] rounded-xl p-3.5">
-              <div>
-                <div className="flex items-center justify-between mb-1">
-                  <label className="text-[11px] font-medium text-[#a1a1aa]">RingCentral JWT Token</label>
-                  <a
-                    href="https://developer.ringcentral.com/my-account.html#/applications"
-                    target="_blank"
-                    rel="noreferrer"
-                    className="text-[10px] text-blue-400 hover:underline flex items-center gap-1"
-                  >
-                    <span>Developer Console</span> <ExternalLink className="w-2.5 h-2.5" />
-                  </a>
-                </div>
-                <textarea
-                  value={jwtToken}
-                  onChange={(e) => setJwtToken(e.target.value)}
-                  placeholder="Paste RingCentral App JWT Token..."
-                  rows={2}
-                  className="w-full bg-[#09090b] border border-[#27272a] rounded-lg px-3 py-1.5 text-xs text-white placeholder:text-zinc-600 focus:outline-none focus:border-blue-500 font-mono resize-none"
-                />
-              </div>
-
-              <div>
-                <label className="text-[11px] font-medium text-[#a1a1aa] block mb-1">Bearer Access Token</label>
-                <input
-                  type="password"
-                  value={accessToken}
-                  onChange={(e) => setAccessToken(e.target.value)}
-                  placeholder="Paste active Bearer token..."
-                  className="w-full bg-[#09090b] border border-[#27272a] rounded-lg px-3 py-1.5 text-xs text-white focus:outline-none focus:border-blue-500 font-mono"
-                />
-              </div>
-
-              <button
-                type="submit"
-                disabled={isLoading}
-                className="w-full py-2 bg-white hover:bg-zinc-200 text-black font-semibold text-xs rounded-lg transition-all cursor-pointer disabled:opacity-50"
-              >
-                Connect Account via Token
-              </button>
-            </form>
-          )}
-        </div>
+            <button
+              type="button"
+              onClick={checkSessionNow}
+              disabled={isCheckingSession}
+              className="w-full py-2.5 px-3 bg-[#18181b] hover:bg-[#27272a] text-[#e4e4e7] border border-[#27272a] text-xs font-medium rounded-xl transition-all flex items-center justify-center gap-2 cursor-pointer disabled:opacity-50"
+            >
+              {isCheckingSession ? (
+                <RefreshCcw className="w-3.5 h-3.5 animate-spin text-blue-400" />
+              ) : (
+                <RefreshCcw className="w-3.5 h-3.5 text-emerald-400" />
+              )}
+              <span>Completed Sign In? Enter Dashboard Now</span>
+            </button>
+          </form>
+        )}
 
         {/* Feature Grid */}
         <div className="pt-4 border-t border-[#27272a] grid grid-cols-2 gap-3 text-left">

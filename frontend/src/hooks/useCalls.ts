@@ -38,7 +38,11 @@ export function useCalls() {
 
         let response: Response | null = null
         try {
-          response = await fetch(`/api/calls?${params.toString()}`)
+          const headers: Record<string, string> = {}
+          if (accessToken) {
+            headers['Authorization'] = `Bearer ${accessToken}`
+          }
+          response = await fetch(`/api/calls?${params.toString()}`, { headers })
         } catch (e) {}
 
         const contentType = response?.headers.get('content-type') || ''

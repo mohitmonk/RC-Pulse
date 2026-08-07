@@ -271,9 +271,10 @@ export default {
     if (pathname === '/api/auth/login' && request.method === 'POST') {
       try {
         const body: any = await request.json().catch(() => ({}))
-        const { serverUrl, clientId, redirectUri: userRedirectUri } = body
+        const { serverUrl, clientId, clientSecret, redirectUri: userRedirectUri } = body
         const targetServer = serverUrl || env.RINGCENTRAL_SERVER_URL || 'https://platform.ringcentral.com'
-        const targetClientId = clientId || env.RINGCENTRAL_CLIENT_ID || ''
+        const targetClientId = clientId || env.RINGCENTRAL_CLIENT_ID || '8EYSDHink0fdsQ9W3c4fOj'
+        const targetClientSecret = clientSecret || env.RINGCENTRAL_CLIENT_SECRET || 'eJ1d3GrHSE2dmQQb33SKQF2YiCZgSp4bAd2DbaFBh4po'
 
         if (!targetClientId) {
           return jsonResponse({
@@ -287,7 +288,15 @@ export default {
           ? userRedirectUri.trim()
           : `${origin}/oauth/callback`
 
-        const authUrl = `${targetServer.replace(/\/$/, '')}/restapi/oauth/authorize?response_type=code&client_id=${encodeURIComponent(targetClientId)}&redirect_uri=${encodeURIComponent(finalRedirectUri)}&state=rc_pulse_state`
+        const stateObj = {
+          clientId: targetClientId,
+          clientSecret: targetClientSecret,
+          serverUrl: targetServer,
+          redirectUri: finalRedirectUri
+        }
+        const stateStr = btoa(JSON.stringify(stateObj))
+
+        const authUrl = `${targetServer.replace(/\/$/, '')}/restapi/oauth/authorize?response_type=code&client_id=${encodeURIComponent(targetClientId)}&redirect_uri=${encodeURIComponent(finalRedirectUri)}&state=${encodeURIComponent(stateStr)}`
 
         return jsonResponse({
           success: true,
@@ -304,6 +313,7 @@ export default {
       const code = url.searchParams.get('code')
       const error = url.searchParams.get('error')
       const errorDesc = url.searchParams.get('error_description')
+      const rawState = url.searchParams.get('state')
 
       if (error || !code) {
         return htmlResponse(`
@@ -321,38 +331,150 @@ export default {
         `, 400)
       }
 
-      return htmlResponse(`
-        <!DOCTYPE html>
-        <html>
-          <head>
-            <title>RingCentral Connected</title>
-            <style>
-              body { background: #09090b; color: #22c55e; font-family: system-ui, sans-serif; display: flex; align-items: center; justify-content: center; height: 100vh; margin: 0; }
-              .card { text-align: center; background: #18181b; padding: 32px; border-radius: 16px; border: 1px solid #27272a; max-width: 400px; }
-              h2 { margin-top: 0; color: #22c55e; font-size: 20px; }
-              p { font-size: 13px; color: #a1a1aa; }
-            </style>
-          </head>
-          <body>
-            <div class="card">
-              <h2>✓ Connected to RingCentral!</h2>
-              <p>Authorization code received. Returning to RC Pulse...</p>
-              <script>
-                try {
-                  if (window.opener) {
-                    window.opener.postMessage({ type: 'RC_AUTH_SUCCESS', code: ${JSON.stringify(code)} }, '*');
-                    window.close();
-                  } else {
-                    window.location.href = '/?code=' + encodeURIComponent(${JSON.stringify(code)});
+      let clientId = env.RINGCENTRAL_CLIENT_ID || '8EYSDHink0fdsQ9W3c4fOj'
+      let clientSecret = env.RINGCENTRAL_CLIENT_SECRET || 'eJ1d3GrHSE2dmQQb33SKQF2YiCZgSp4bAd2DbaFBh4po'
+      let serverUrl = env.RINGCENTRAL_SERVER_URL || 'https://platform.ringcentral.com'
+      let redirectUri = `${url.origin}/oauth/callback`
+
+      if (rawState) {
+        try {
+          const decoded = JSON.parse(atob(decodeURIComponent(rawState)))
+          if (decoded.clientId) clientId = decoded.clientId
+          if (decoded.clientSecret) clientSecret = decoded.clientSecret
+          if (decoded.serverUrl) serverUrl = decoded.serverUrl
+          if (decoded.redirectUri) redirectUri = decoded.redirectUri
+        } catch (e) {
+          // Ignore state parsing errors fallback to defaults
+        }
+      }
+
+      try {
+        // Exchange authorization code for access token with RingCentral REST API
+        const tokenUrl = `${serverUrl.replace(/\/$/, '')}/restapi/oauth/token`
+        const bodyParams = new URLSearchParams({
+          grant_type: 'authorization_code',
+          code,
+          redirect_uri: redirectUri
+        })
+
+        const headers: Record<string, string> = {
+          'Content-Type': 'application/x-www-form-urlencoded'
+        }
+
+        if (clientId && clientSecret) {
+          headers['Authorization'] = `Basic ${btoa(`${clientId}:${clientSecret}`)}`
+        } else if (clientId) {
+          bodyParams.append('client_id', clientId)
+        }
+
+        const tokenRes = await fetch(tokenUrl, {
+          method: 'POST',
+          headers,
+          body: bodyParams.toString()
+        })
+
+        if (!tokenRes.ok) {
+          const errText = await tokenRes.text()
+          return htmlResponse(`
+            <!DOCTYPE html>
+            <html>
+              <head><title>Token Exchange Failed</title></head>
+              <body style="background:#09090b;color:#f43f5e;font-family:sans-serif;display:flex;align-items:center;justify-content:center;height:100vh;margin:0;">
+                <div style="text-align:center;background:#18181b;padding:32px;border-radius:16px;border:1px solid #27272a;max-width:440px;">
+                  <h2 style="margin-top:0;color:#f43f5e;">Authentication Exchange Failed</h2>
+                  <p style="font-size:12px;color:#a1a1aa;line-height:1.6;word-break:break-all;">${errText}</p>
+                  <a href="/" style="color:#60a5fa;text-decoration:none;font-size:13px;display:inline-block;margin-top:20px;font-weight:600;">&larr; Return to Login</a>
+                </div>
+              </body>
+            </html>
+          `, 400)
+        }
+
+        const tokenJson: any = await tokenRes.json()
+        const accessToken = tokenJson.access_token
+
+        // Fetch User Profile
+        const profileRes = await fetch(`${serverUrl.replace(/\/$/, '')}/restapi/v1.0/account/~/extension/~`, {
+          headers: { Authorization: `Bearer ${accessToken}` }
+        })
+
+        let userProfile = null
+        if (profileRes.ok) {
+          const extInfo: any = await profileRes.json()
+          const firstName = extInfo.contact?.firstName || ''
+          const lastName = extInfo.contact?.lastName || ''
+          const name = extInfo.name || `${firstName} ${lastName}`.trim() || `Extension ${extInfo.extensionNumber || extInfo.id}`
+
+          userProfile = {
+            id: String(extInfo.id),
+            extensionId: String(extInfo.id),
+            accountId: String(extInfo.account?.id || 'acc_active'),
+            name,
+            firstName: firstName || 'RingCentral',
+            lastName: lastName || 'User',
+            email: extInfo.contact?.email || 'user@ringcentral.com',
+            extensionNumber: extInfo.extensionNumber || '101',
+            status: extInfo.status || 'Enabled',
+            contactPhone: extInfo.contact?.businessPhone || '',
+            companyName: extInfo.account?.name || 'RingCentral Account',
+            presenceStatus: 'Available',
+            userStatus: 'Online'
+          }
+        }
+
+        return htmlResponse(`
+          <!DOCTYPE html>
+          <html>
+            <head>
+              <title>RingCentral Connected</title>
+              <style>
+                body { background: #09090b; color: #22c55e; font-family: system-ui, sans-serif; display: flex; align-items: center; justify-content: center; height: 100vh; margin: 0; }
+                .card { text-align: center; background: #18181b; padding: 32px; border-radius: 16px; border: 1px solid #27272a; max-width: 400px; }
+                h2 { margin-top: 0; color: #22c55e; font-size: 20px; font-weight: 700; }
+                p { font-size: 13px; color: #a1a1aa; line-height: 1.5; }
+              </style>
+            </head>
+            <body>
+              <div class="card">
+                <h2>✓ RingCentral Connected!</h2>
+                <p>Authentication successful. Returning to RC Pulse...</p>
+                <script>
+                  try {
+                    const payload = {
+                      type: 'RC_AUTH_SUCCESS',
+                      accessToken: ${JSON.stringify(accessToken)},
+                      user: ${JSON.stringify(userProfile)}
+                    };
+                    localStorage.setItem('rc_oauth_login_data', JSON.stringify(payload));
+                    if (window.opener) {
+                      window.opener.postMessage(payload, '*');
+                      setTimeout(function() { window.close(); }, 500);
+                    } else {
+                      window.location.href = '/?oauth_success=true';
+                    }
+                  } catch(e) {
+                    window.location.href = '/';
                   }
-                } catch(e) {
-                  window.location.href = '/';
-                }
-              </script>
-            </div>
-          </body>
-        </html>
-      `, 200)
+                </script>
+              </div>
+            </body>
+          </html>
+        `, 200)
+      } catch (err: any) {
+        return htmlResponse(`
+          <!DOCTYPE html>
+          <html>
+            <head><title>OAuth Error</title></head>
+            <body style="background:#09090b;color:#f43f5e;font-family:sans-serif;display:flex;align-items:center;justify-content:center;height:100vh;margin:0;">
+              <div style="text-align:center;background:#18181b;padding:32px;border-radius:16px;border:1px solid #27272a;max-width:440px;">
+                <h2 style="margin-top:0;">OAuth Processing Error</h2>
+                <p style="font-size:13px;color:#a1a1aa;line-height:1.6;">${err?.message || 'Server error during OAuth process'}</p>
+                <a href="/" style="color:#60a5fa;text-decoration:none;font-size:13px;display:inline-block;margin-top:20px;font-weight:600;">&larr; Return to Login</a>
+              </div>
+            </body>
+          </html>
+        `, 500)
+      }
     }
 
     return jsonResponse({ success: false, error: 'Endpoint not found' }, 404)

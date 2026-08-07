@@ -7,6 +7,8 @@ import { AnalyticsService } from './src/main/services/AnalyticsService'
 import { ExportService } from './src/main/services/ExportService'
 import { SettingsService } from './src/main/services/SettingsService'
 import { DateFilterType } from './src/types/call'
+import { RingCentralClient } from './src/main/auth/RingCentral'
+import { TokenStore } from './src/main/auth/TokenStore'
 
 import fs from 'fs'
 

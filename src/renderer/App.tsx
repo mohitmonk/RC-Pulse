@@ -26,21 +26,22 @@ export default function App() {
     const syncSession = async () => {
       try {
         const res = await fetch('/api/user/me')
-        if (res.ok) {
+        const contentType = res.headers.get('content-type') || ''
+        if (res.ok && contentType.includes('application/json')) {
           const data = await res.json()
           if (data.success && data.user) {
             setUser(data.user)
           }
         }
       } catch (err) {
-        console.warn('Session sync error:', err)
+        // Ignore session sync errors when offline or non-JSON response
       }
     }
 
     syncSession()
 
-    // Periodically check for active session (e.g. after OAuth redirect completes)
-    const interval = setInterval(syncSession, 1500)
+    // Periodically check for active session
+    const interval = setInterval(syncSession, 10000)
 
     const handleFocus = () => {
       syncSession()

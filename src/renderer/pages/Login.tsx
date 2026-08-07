@@ -26,7 +26,8 @@ export const Login: React.FC = () => {
       timer = setInterval(async () => {
         try {
           const res = await fetch('/api/user/me')
-          if (res.ok) {
+          const contentType = res.headers.get('content-type') || ''
+          if (res.ok && contentType.includes('application/json')) {
             const data = await res.json()
             if (data.success && data.user) {
               setUser(data.user)
@@ -34,7 +35,7 @@ export const Login: React.FC = () => {
             }
           }
         } catch (e) {}
-      }, 1200)
+      }, 1500)
     }
     return () => clearInterval(timer)
   }, [isWaitingOAuth, setUser])
@@ -45,6 +46,12 @@ export const Login: React.FC = () => {
     try {
       setIsCheckingSession(true)
       const res = await fetch('/api/user/me')
+      const contentType = res.headers.get('content-type') || ''
+      if (!contentType.includes('application/json')) {
+        setFormError('Static host detected (e.g. Cloudflare Pages). Please sign in using your JWT Token or Access Token below for direct connection!')
+        setShowAdvanced(true)
+        return false
+      }
       if (res.ok) {
         const data = await res.json()
         if (data.success && data.user) {

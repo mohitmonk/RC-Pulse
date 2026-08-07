@@ -11,7 +11,9 @@ export const Login: React.FC = () => {
   const [serverUrl, setServerUrl] = useState('https://platform.ringcentral.com')
   const [clientId, setClientId] = useState('8EYSDHink0fdsQ9W3c4fOj')
   const [clientSecret, setClientSecret] = useState('eJ1d3GrHSE2dmQQb33SKQF2YiCZgSp4bAd2DbaFBh4po')
-  const [redirectUri, setRedirectUri] = useState('http://localhost:47831/callback')
+  const [redirectUri, setRedirectUri] = useState(() => 
+    typeof window !== 'undefined' ? `${window.location.origin}/oauth/callback` : 'http://localhost:47831/callback'
+  )
   const [copiedUri, setCopiedUri] = useState(false)
   const [jwtToken, setJwtToken] = useState('')
   const [accessToken, setAccessToken] = useState('')

@@ -11,7 +11,9 @@ export const Login: React.FC = () => {
   const [serverUrl, setServerUrl] = useState('https://platform.ringcentral.com')
   const [clientId, setClientId] = useState('8EYSDHink0fdsQ9W3c4fOj')
   const [clientSecret, setClientSecret] = useState('eJ1d3GrHSE2dmQQb33SKQF2YiCZgSp4bAd2DbaFBh4po')
-  const [redirectUri, setRedirectUri] = useState('http://localhost:47831/callback')
+  const [redirectUri, setRedirectUri] = useState(() => 
+    typeof window !== 'undefined' ? `${window.location.origin}/oauth/callback` : 'http://localhost:47831/callback'
+  )
   const [copiedUri, setCopiedUri] = useState(false)
   const [jwtToken, setJwtToken] = useState('')
   const [accessToken, setAccessToken] = useState('')
@@ -194,17 +196,17 @@ export const Login: React.FC = () => {
               <div className="flex items-center gap-2">
                 <button
                   type="button"
-                  onClick={() => setRedirectUri('http://localhost:47831/callback')}
-                  className="text-[10px] text-zinc-400 hover:text-white underline cursor-pointer"
-                >
-                  Local (47831)
-                </button>
-                <button
-                  type="button"
                   onClick={() => setRedirectUri(`${window.location.origin}/oauth/callback`)}
                   className="text-[10px] text-blue-400 hover:underline cursor-pointer"
                 >
                   App Origin
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setRedirectUri('http://localhost:47831/callback')}
+                  className="text-[10px] text-zinc-400 hover:text-white underline cursor-pointer"
+                >
+                  Local (47831)
                 </button>
               </div>
             </div>
@@ -212,11 +214,11 @@ export const Login: React.FC = () => {
               type="text"
               value={redirectUri}
               onChange={(e) => setRedirectUri(e.target.value)}
-              placeholder="e.g. http://localhost:47831/callback"
+              placeholder="e.g. https://your-app.pages.dev/oauth/callback"
               className="w-full bg-[#18181b] border border-[#27272a] rounded-xl px-3.5 py-2 text-xs text-white/90 placeholder:text-zinc-600 focus:outline-none focus:border-blue-500 font-mono text-[11px]"
             />
             <p className="text-[10px] text-[#71717a] mt-1.5 leading-normal">
-              📌 RingCentral registered URI: <code className="text-blue-400 font-mono">http://localhost:47831/callback</code>
+              📌 <strong>Cloudflare Action Required:</strong> Add <code className="text-blue-400 font-mono">{redirectUri || `${window.location.origin}/oauth/callback`}</code> under <strong>OAuth Redirect URIs</strong> in your <strong>RingCentral Developer Portal</strong>!
             </p>
           </div>
 

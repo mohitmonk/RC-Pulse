@@ -39,6 +39,27 @@ export const Login: React.FC = () => {
     return () => clearInterval(timer)
   }, [isWaitingOAuth, setUser])
 
+  const [isCheckingSession, setIsCheckingSession] = useState(false)
+
+  const checkSessionNow = async () => {
+    try {
+      setIsCheckingSession(true)
+      const res = await fetch('/api/user/me')
+      if (res.ok) {
+        const data = await res.json()
+        if (data.success && data.user) {
+          setUser(data.user)
+          return true
+        }
+      }
+      setFormError('No active RingCentral session found yet. Please complete authentication in the RingCentral window.')
+    } catch (e: any) {
+      setFormError('Failed to check authentication status.')
+    } finally {
+      setIsCheckingSession(false)
+    }
+    return false
+  }
   const handleCopyUri = () => {
     if (navigator.clipboard) {
       navigator.clipboard.writeText(redirectUri)
@@ -195,7 +216,7 @@ export const Login: React.FC = () => {
           {/* Hero Action Button: Sign in via Browser */}
           <button
             type="submit"
-            disabled={isLoading}
+            disabled={isLoading || isCheckingSession}
             className="w-full flex items-center justify-center gap-2 py-3 px-4 bg-gradient-to-r from-blue-600 to-indigo-600 hover:from-blue-500 hover:to-indigo-500 text-white font-semibold text-xs rounded-xl shadow-lg shadow-blue-600/20 transition-all cursor-pointer disabled:opacity-50"
           >
             {isLoading ? (
@@ -207,6 +228,21 @@ export const Login: React.FC = () => {
                 <ArrowRight className="w-4 h-4 ml-1" />
               </>
             )}
+          </button>
+
+          {/* Quick Check Session button */}
+          <button
+            type="button"
+            onClick={checkSessionNow}
+            disabled={isCheckingSession}
+            className="w-full py-2.5 px-3 bg-[#18181b] hover:bg-[#27272a] text-[#e4e4e7] border border-[#27272a] text-xs font-medium rounded-xl transition-all flex items-center justify-center gap-2 cursor-pointer disabled:opacity-50"
+          >
+            {isCheckingSession ? (
+              <RefreshCcw className="w-3.5 h-3.5 animate-spin text-blue-400" />
+            ) : (
+              <RefreshCcw className="w-3.5 h-3.5 text-emerald-400" />
+            )}
+            <span>Completed Sign In? Enter Dashboard Now</span>
           </button>
         </form>
 

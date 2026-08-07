@@ -39,6 +39,13 @@ export default function App() {
 
     syncSession()
 
+    // Periodically check for active session (e.g. after OAuth redirect completes)
+    const interval = setInterval(syncSession, 1500)
+
+    const handleFocus = () => {
+      syncSession()
+    }
+
     // Listen for OAuth completion from popup window
     const handleMessage = (event: MessageEvent) => {
       if (event.data?.type === 'RC_AUTH_SUCCESS') {
@@ -46,8 +53,13 @@ export default function App() {
       }
     }
 
+    window.addEventListener('focus', handleFocus)
     window.addEventListener('message', handleMessage)
-    return () => window.removeEventListener('message', handleMessage)
+    return () => {
+      clearInterval(interval)
+      window.removeEventListener('focus', handleFocus)
+      window.removeEventListener('message', handleMessage)
+    }
   }, [setUser])
 
   if (!isAuthenticated) {

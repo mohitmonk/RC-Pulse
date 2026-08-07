@@ -123,7 +123,6 @@ async function startServer() {
       })
 
       activeRcClient = client
-      isDemoActive = false
 
       // Fetch real user profile from RingCentral API to confirm connection
       const realUser = await UserService.getCurrentUser(client)

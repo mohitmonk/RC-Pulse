@@ -37,25 +37,6 @@ export function useAuth() {
     }
   }
 
-  const loginWithDemo = async () => {
-    try {
-      useAuthStore.getState().setLoading(true)
-      useAuthStore.getState().setError(null)
-
-      const res = await fetch('/api/auth/demo', { method: 'POST' })
-      const data = await res.json()
-
-      if (data.success) {
-        setDemoMode(true)
-        setUser(data.user)
-      }
-    } catch (err: any) {
-      useAuthStore.getState().setError(err.message || 'Demo login failed')
-    } finally {
-      useAuthStore.getState().setLoading(false)
-    }
-  }
-
   const loginWithOAuth = async (opts?: { serverUrl?: string; clientId?: string; clientSecret?: string; redirectUri?: string }) => {
     try {
       useAuthStore.getState().setLoading(true)
@@ -105,9 +86,8 @@ export function useAuth() {
     isLoading,
     user,
     error,
-    isDemoMode,
+    isDemoMode: false,
     loginWithRealAccount,
-    loginWithDemo,
     loginWithOAuth,
     handleLogout,
     setDemoMode

@@ -1,9 +1,11 @@
-import React, { useState } from 'react'
+import React, { useState, useEffect } from 'react'
 import { Activity, Shield, Lock, ArrowRight, BarChart3, Download, RefreshCcw, Key, Building2, ExternalLink, Globe, ChevronDown, ChevronUp } from 'lucide-react'
 import { useAuth } from '../hooks/useAuth'
+import { useAuthStore } from '../store/authStore'
 
 export const Login: React.FC = () => {
-  const { loginWithRealAccount, loginWithDemo, loginWithOAuth, isLoading, error } = useAuth()
+  const { loginWithRealAccount, loginWithOAuth, isLoading, error } = useAuth()
+  const { setUser } = useAuthStore()
 
   // Real Account Credentials state
   const [serverUrl, setServerUrl] = useState('https://platform.ringcentral.com')
@@ -15,6 +17,27 @@ export const Login: React.FC = () => {
   const [accessToken, setAccessToken] = useState('')
   const [showAdvanced, setShowAdvanced] = useState(false)
   const [formError, setFormError] = useState<string | null>(null)
+  const [isWaitingOAuth, setIsWaitingOAuth] = useState(false)
+
+  // Poll for authenticated session while OAuth popup is in progress
+  useEffect(() => {
+    let timer: any
+    if (isWaitingOAuth) {
+      timer = setInterval(async () => {
+        try {
+          const res = await fetch('/api/user/me')
+          if (res.ok) {
+            const data = await res.json()
+            if (data.success && data.user) {
+              setUser(data.user)
+              setIsWaitingOAuth(false)
+            }
+          }
+        } catch (e) {}
+      }, 1200)
+    }
+    return () => clearInterval(timer)
+  }, [isWaitingOAuth, setUser])
 
   const handleCopyUri = () => {
     if (navigator.clipboard) {
@@ -24,7 +47,7 @@ export const Login: React.FC = () => {
     }
   }
 
-  const handleBrowserLogin = (e: React.FormEvent) => {
+  const handleBrowserLogin = async (e: React.FormEvent) => {
     e.preventDefault()
     setFormError(null)
 
@@ -34,7 +57,8 @@ export const Login: React.FC = () => {
       return
     }
 
-    loginWithOAuth({
+    setIsWaitingOAuth(true)
+    await loginWithOAuth({
       serverUrl,
       clientId: clientId.trim(),
       clientSecret: clientSecret.trim(),
@@ -243,19 +267,6 @@ export const Login: React.FC = () => {
               </button>
             </form>
           )}
-        </div>
-
-        {/* Demo Sandbox Quick Switch */}
-        <div className="pt-2">
-          <button
-            type="button"
-            onClick={loginWithDemo}
-            disabled={isLoading}
-            className="w-full py-2.5 px-4 bg-[#18181b] hover:bg-[#27272a] text-[#e4e4e7] font-medium text-xs rounded-xl border border-[#27272a] transition-colors cursor-pointer flex items-center justify-center gap-2"
-          >
-            <Shield className="w-3.5 h-3.5 text-indigo-400" />
-            <span>Try Interactive Demo Sandbox</span>
-          </button>
         </div>
 
         {/* Feature Grid */}

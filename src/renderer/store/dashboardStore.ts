@@ -45,7 +45,7 @@ export const useDashboardStore = create<DashboardStoreState>((set) => ({
     enableNotifications: true,
     soundEnabled: true,
     defaultDateFilter: 'this_month',
-    isDemoMode: true
+    isDemoMode: false
   },
 
   setActiveTab: (activeTab) => set({ activeTab }),

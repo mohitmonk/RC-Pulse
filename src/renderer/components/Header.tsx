@@ -49,21 +49,9 @@ export const Header: React.FC = () => {
 
       {/* Right: Date Filter, Actions & Profile */}
       <div className="flex items-center gap-3">
-        {isDemoMode ? (
-          <button
-            onClick={handleLogout}
-            className="inline-flex items-center gap-1.5 px-3 py-1 rounded-md bg-indigo-500/10 hover:bg-indigo-500/20 border border-indigo-500/30 text-indigo-300 hover:text-indigo-200 text-xs font-medium transition-colors cursor-pointer"
-            title="Click to exit Demo Mode & Connect Real Account"
-          >
-            <Shield className="w-3.5 h-3.5 text-indigo-400" />
-            <span>Demo Sandbox</span>
-            <span className="text-[10px] opacity-75 underline ml-1">Switch Account</span>
-          </button>
-        ) : (
-          <span className="hidden sm:inline-flex items-center gap-1.5 px-2.5 py-1 rounded-md bg-emerald-500/10 border border-emerald-500/20 text-emerald-400 text-xs font-medium">
-            <Circle className="w-2 h-2 fill-emerald-400" /> Live Account
-          </span>
-        )}
+        <span className="hidden sm:inline-flex items-center gap-1.5 px-2.5 py-1 rounded-md bg-emerald-500/10 border border-emerald-500/20 text-emerald-400 text-xs font-medium">
+          <Circle className="w-2 h-2 fill-emerald-400" /> Live RingCentral
+        </span>
 
         <DateFilter />
 
@@ -115,7 +103,7 @@ export const Header: React.FC = () => {
                       <Circle className="w-2 h-2 fill-emerald-400" /> {user?.presenceStatus || 'Available'}
                     </span>
                     <span className="text-zinc-400 font-mono">
-                      {isDemoMode ? 'Demo Sandbox' : 'Live RingCentral'}
+                      Live RingCentral
                     </span>
                   </div>
                 </div>

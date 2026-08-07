@@ -73,8 +73,8 @@ export class CallLogService {
         direction,
         action: direction === 'Inbound' ? 'Phone Call' : 'Direct Call',
         result,
-        from: direction === 'Inbound' ? { phoneNumber: contact.number, name: contact.name, location: contact.location } : { phoneNumber: '+1 (555) 234-5678', name: 'Sarah Connor', extensionNumber: '104' },
-        to: direction === 'Outbound' ? { phoneNumber: contact.number, name: contact.name, location: contact.location } : { phoneNumber: '+1 (555) 234-5678', name: 'Sarah Connor', extensionNumber: '104' },
+        from: direction === 'Inbound' ? { phoneNumber: contact.number, name: contact.name, location: contact.location } : { phoneNumber: '+1 (555) 234-5678', name: 'RingCentral Agent', extensionNumber: '104' },
+        to: direction === 'Outbound' ? { phoneNumber: contact.number, name: contact.name, location: contact.location } : { phoneNumber: '+1 (555) 234-5678', name: 'RingCentral Agent', extensionNumber: '104' },
         recording: duration > 60 && Math.random() > 0.4 ? {
           id: `rec_aud_${recordId}`,
           uri: `https://media.ringcentral.com/recording/${recordId}`,
@@ -92,20 +92,16 @@ export class CallLogService {
   }
 
   public static async getCallLogs(
-    client?: RingCentralClient | null,
+    client: RingCentralClient,
     filterType: DateFilterType = 'this_month',
     customStart?: string,
     customEnd?: string
   ): Promise<CallLogRecord[]> {
-    const { startDate, endDate } = DateUtils.getDateRange(filterType, customStart, customEnd)
-
     if (!client) {
-      const allCalls = this.generateDemoCalls()
-      return allCalls.filter(call => {
-        const time = new Date(call.startTime).getTime()
-        return time >= new Date(startDate).getTime() && time <= new Date(endDate).getTime()
-      })
+      throw new Error('RingCentral client is not authenticated')
     }
+
+    const { startDate, endDate } = DateUtils.getDateRange(filterType, customStart, customEnd)
 
     try {
       const queryParams = new URLSearchParams({
@@ -147,13 +143,9 @@ export class CallLogService {
           contentUri: r.recording.contentUri
         } : undefined
       }))
-    } catch (err) {
-      Logger.warn('Failed to fetch call log from RingCentral API, falling back to local dataset:', err)
-      const allCalls = this.generateDemoCalls()
-      return allCalls.filter(call => {
-        const time = new Date(call.startTime).getTime()
-        return time >= new Date(startDate).getTime() && time <= new Date(endDate).getTime()
-      })
+    } catch (err: any) {
+      Logger.error('Failed to fetch call log from RingCentral API:', err)
+      throw new Error(`Failed to fetch call log from RingCentral API: ${err.message || err}`)
     }
   }
 }

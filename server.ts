@@ -25,7 +25,6 @@ async function startServer() {
 
   // App Session State
   let activeRcClient: RingCentralClient | null = null
-  let isDemoActive = false
 
   async function getActiveClient(): Promise<RingCentralClient | null> {
     if (activeRcClient) {
@@ -33,7 +32,7 @@ async function startServer() {
     }
 
     const tokens = await TokenStore.getTokens()
-    if (tokens && tokens.accessToken && !tokens.isDemoMode) {
+    if (tokens && tokens.accessToken) {
       const serverUrl = tokens.serverUrl || process.env.RINGCENTRAL_SERVER_URL || 'https://platform.ringcentral.com'
       const clientId = tokens.clientId || process.env.RINGCENTRAL_CLIENT_ID || ''
       const clientSecret = tokens.clientSecret || process.env.RINGCENTRAL_CLIENT_SECRET || ''
@@ -43,14 +42,8 @@ async function startServer() {
         clientSecret,
         serverUrl
       })
-      isDemoActive = false
       console.log('[RC Pulse] Auto-restored active RingCentral client session from TokenStore.')
       return activeRcClient
-    }
-
-    if (tokens && tokens.isDemoMode) {
-      isDemoActive = true
-      return null
     }
 
     return null
@@ -61,17 +54,15 @@ async function startServer() {
     try {
       const client = await getActiveClient()
 
-      if (isDemoActive || !client) {
-        // Return demo user if demo mode or unauthenticated fallback
-        const user = UserService.getDemoUser()
-        return res.json({ success: true, user, isDemoMode: isDemoActive || !client })
+      if (!client) {
+        return res.status(401).json({ success: false, error: 'Not authenticated with RingCentral' })
       }
       
       const user = await UserService.getCurrentUser(client)
       res.json({ success: true, user, isDemoMode: false })
     } catch (err: any) {
-      console.warn('[RC Pulse] Failed to fetch user from RingCentral API, defaulting to demo user:', err.message)
-      res.json({ success: true, user: UserService.getDemoUser(), isDemoMode: true, warning: err.message })
+      console.warn('[RC Pulse] Failed to fetch user from RingCentral API:', err.message)
+      res.status(401).json({ success: false, error: err.message })
     }
   })
 
@@ -83,15 +74,17 @@ async function startServer() {
       const customEnd = req.query.endDate as string
 
       const client = await getActiveClient()
-      const clientToUse = isDemoActive ? null : client
-      const calls = await CallLogService.getCallLogs(clientToUse, filterType, customStart, customEnd)
+      if (!client) {
+        return res.status(401).json({ success: false, error: 'Not authenticated with RingCentral' })
+      }
+      const calls = await CallLogService.getCallLogs(client, filterType, customStart, customEnd)
       const analytics = AnalyticsService.calculateAnalytics(calls)
 
       res.json({
         success: true,
         calls,
         analytics,
-        isDemoMode: isDemoActive || !clientToUse
+        isDemoMode: false
       })
     } catch (err: any) {
       res.status(500).json({ success: false, error: err.message })
@@ -144,26 +137,6 @@ async function startServer() {
     } catch (err: any) {
       res.status(400).json({ success: false, error: err.message || 'Authentication with RingCentral failed' })
     }
-  })
-
-  app.post('/api/auth/demo', async (req, res) => {
-    activeRcClient = null
-    isDemoActive = true
-
-    await TokenStore.saveTokens({
-      accessToken: 'demo_token',
-      refreshToken: '',
-      expiresAt: Date.now() + 86400000,
-      tokenType: 'Bearer',
-      scope: '',
-      isDemoMode: true
-    })
-
-    res.json({
-      success: true,
-      user: UserService.getDemoUser(),
-      isDemoMode: true
-    })
   })
 
   let pendingOAuthState: {
@@ -222,7 +195,9 @@ async function startServer() {
 
     if (error || !code) {
       return res.status(400).send(`
+        <!DOCTYPE html>
         <html>
+          <head><title>Authentication Failed</title></head>
           <body style="background:#09090b;color:#f43f5e;font-family:sans-serif;display:flex;align-items:center;justify-content:center;height:100vh;margin:0;">
             <div style="text-align:center;background:#18181b;padding:32px;border-radius:16px;border:1px solid #27272a;max-width:440px;">
               <h2 style="margin-top:0;">Authentication Failed</h2>
@@ -263,18 +238,40 @@ async function startServer() {
       })
 
       activeRcClient = clientToUse
-      isDemoActive = false
 
       res.send(`
+        <!DOCTYPE html>
         <html>
-          <body style="background:#09090b;color:#22c55e;font-family:sans-serif;display:flex;align-items:center;justify-content:center;height:100vh;margin:0;">
-            <div style="text-align:center;background:#18181b;padding:32px;border-radius:16px;border:1px solid #27272a;max-width:400px;">
-              <h2 style="margin-top:0;color:#22c55e;">Connected to RingCentral!</h2>
-              <p style="font-size:14px;color:#a1a1aa;">Redirecting you back to your RC Pulse dashboard...</p>
+          <head>
+            <title>RingCentral Connected</title>
+            <style>
+              body { background: #09090b; color: #22c55e; font-family: system-ui, -apple-system, sans-serif; display: flex; align-items: center; justify-content: center; height: 100vh; margin: 0; }
+              .card { text-align: center; background: #18181b; padding: 32px; border-radius: 16px; border: 1px solid #27272a; max-width: 400px; box-shadow: 0 20px 25px -5px rgba(0,0,0,0.5); }
+              h2 { margin-top: 0; color: #22c55e; font-size: 20px; font-weight: 700; }
+              p { font-size: 13px; color: #a1a1aa; line-height: 1.5; margin-bottom: 0; }
+            </style>
+          </head>
+          <body>
+            <div class="card">
+              <h2>✓ Connected to RingCentral!</h2>
+              <p>Authentication successful. Returning to RC Pulse dashboard...</p>
               <script>
+                try {
+                  if (window.opener) {
+                    window.opener.postMessage({ type: 'RC_AUTH_SUCCESS' }, '*');
+                  }
+                } catch(e) {}
                 setTimeout(function() {
-                  window.location.href = '/';
-                }, 1200);
+                  try {
+                    if (window.opener) {
+                      window.close();
+                    } else {
+                      window.location.href = '/';
+                    }
+                  } catch(e) {
+                    window.location.href = '/';
+                  }
+                }, 600);
               </script>
             </div>
           </body>
@@ -282,7 +279,9 @@ async function startServer() {
       `)
     } catch (err: any) {
       res.status(500).send(`
+        <!DOCTYPE html>
         <html>
+          <head><title>Token Exchange Failed</title></head>
           <body style="background:#09090b;color:#f43f5e;font-family:sans-serif;display:flex;align-items:center;justify-content:center;height:100vh;margin:0;">
             <div style="text-align:center;background:#18181b;padding:32px;border-radius:16px;border:1px solid #27272a;max-width:440px;">
               <h2 style="margin-top:0;">Token Exchange Failed</h2>
@@ -303,7 +302,6 @@ async function startServer() {
 
   app.post('/api/auth/logout', async (req, res) => {
     activeRcClient = null
-    isDemoActive = false
     await TokenStore.clearTokens()
     res.json({ success: true })
   })
@@ -391,6 +389,20 @@ async function startServer() {
   }
 
   startListening(initialPort)
+
+  // Secondary OAuth listener on port 47831 if registered in RingCentral App Console
+  if (initialPort !== 47831) {
+    try {
+      const secServer = app.listen(47831, '0.0.0.0', () => {
+        console.log('[RC Pulse] Secondary OAuth listener active on http://localhost:47831')
+      })
+      secServer.on('error', (err: any) => {
+        console.log('[RC Pulse] Secondary listener on port 47831 skipped:', err.message)
+      })
+    } catch (err: any) {
+      console.log('[RC Pulse] Could not start secondary listener on port 47831')
+    }
+  }
 }
 
 startServer()

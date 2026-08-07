@@ -18,7 +18,7 @@ const queryClient = new QueryClient({
 })
 
 export default function App() {
-  const { isAuthenticated, setUser, logout, setDemoMode } = useAuthStore()
+  const { isAuthenticated, setUser, logout } = useAuthStore()
   const { activeTab } = useDashboardStore()
 
   useEffect(() => {
@@ -30,7 +30,6 @@ export default function App() {
           const data = await res.json()
           if (data.success && data.user) {
             setUser(data.user)
-            setDemoMode(Boolean(data.isDemoMode))
           }
         }
       } catch (err) {
@@ -39,7 +38,17 @@ export default function App() {
     }
 
     syncSession()
-  }, [])
+
+    // Listen for OAuth completion from popup window
+    const handleMessage = (event: MessageEvent) => {
+      if (event.data?.type === 'RC_AUTH_SUCCESS') {
+        syncSession()
+      }
+    }
+
+    window.addEventListener('message', handleMessage)
+    return () => window.removeEventListener('message', handleMessage)
+  }, [setUser])
 
   if (!isAuthenticated) {
     return <Login />

@@ -3,32 +3,9 @@ import { RingCentralClient } from '../auth/RingCentral'
 import { Logger } from '../utils/Logger'
 
 export class UserService {
-  public static getDemoUser(): UserProfile {
-    return {
-      id: 'usr_rc_99812',
-      extensionId: 'ext_401',
-      accountId: 'acc_88102',
-      name: 'Sarah Connor',
-      firstName: 'Sarah',
-      lastName: 'Connor',
-      email: 'sarah.connor@enterprise.org',
-      extensionNumber: '104',
-      status: 'Enabled',
-      contactPhone: '+1 (555) 234-5678',
-      companyName: 'Apex Enterprise Solutions',
-      site: {
-        id: 'site_101',
-        name: 'Headquarters - San Francisco'
-      },
-      presenceStatus: 'Available',
-      userStatus: 'Online',
-      avatarUrl: 'https://images.unsplash.com/photo-1494790108377-be9c29b29330?w=150&auto=format&fit=crop&q=80'
-    }
-  }
-
-  public static async getCurrentUser(client?: RingCentralClient | null): Promise<UserProfile> {
+  public static async getCurrentUser(client: RingCentralClient): Promise<UserProfile> {
     if (!client) {
-      return this.getDemoUser()
+      throw new Error('RingCentral client is not authenticated')
     }
 
     try {
@@ -48,12 +25,13 @@ export class UserService {
         contactPhone: extInfo.contact?.businessPhone || '+15551234567',
         companyName: extInfo.account?.name || 'Enterprise Account',
         site: extInfo.site ? { id: String(extInfo.site.id), name: extInfo.site.name } : undefined,
-        presenceStatus: presenceInfo.presenceStatus || 'Available',
-        userStatus: presenceInfo.userStatus || 'Online'
+        presenceStatus: presenceInfo?.presenceStatus || 'Available',
+        userStatus: presenceInfo?.userStatus || 'Online'
       }
-    } catch (err) {
-      Logger.warn('Failed to fetch user from RingCentral API, defaulting to demo user:', err)
-      return this.getDemoUser()
+    } catch (err: any) {
+      Logger.error('Failed to fetch user from RingCentral API:', err)
+      throw new Error(`Failed to load user profile from RingCentral API: ${err.message || err}`)
     }
   }
 }
+

@@ -10,7 +10,7 @@ export class SettingsService {
     enableNotifications: true,
     soundEnabled: true,
     defaultDateFilter: 'this_month',
-    isDemoMode: true
+    isDemoMode: false
   }
 
   public static getSettings(): AppSettings {

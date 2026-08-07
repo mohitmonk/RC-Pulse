@@ -77,7 +77,7 @@ export const Sidebar: React.FC = () => {
             <span>API Online</span>
           </span>
           <span className="flex items-center gap-1 text-[#22c55e] font-mono text-[10px]">
-            <ShieldCheck className="w-3 h-3 text-indigo-400" /> {isDemoMode ? 'Demo' : 'Live'}
+            <ShieldCheck className="w-3 h-3 text-emerald-400" /> Live
           </span>
         </div>
       </div>

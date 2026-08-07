@@ -1,6 +1,25 @@
 // Cloudflare Pages Function handling /api/* routes
 export async function onRequest(context: any) {
-  const { request } = context
+  const { request, env } = context
+
+  // 1. Service Binding to Cloudflare Worker (Service name: rc-pulse-backend)
+  if (env.BACKEND && typeof env.BACKEND.fetch === 'function') {
+    return env.BACKEND.fetch(request.clone())
+  }
+
+  // 2. HTTP Proxy via BACKEND_URL environment variable
+  if (env.BACKEND_URL) {
+    const url = new URL(request.url)
+    const targetUrl = `${env.BACKEND_URL.replace(/\/$/, '')}${url.pathname}${url.search}`
+    
+    const headers = new Headers(request.headers)
+    return fetch(targetUrl, {
+      method: request.method,
+      headers: headers,
+      body: ['GET', 'HEAD', 'OPTIONS'].includes(request.method) ? undefined : await request.arrayBuffer()
+    })
+  }
+
   const url = new URL(request.url)
   const pathname = url.pathname
 
@@ -79,8 +98,9 @@ export async function onRequest(context: any) {
   return new Response(
     JSON.stringify({
       success: false,
-      error: 'Endpoint not implemented on Cloudflare Worker functions directly. Using direct client-side fallback.'
+      error: 'Worker backend not bound. Add Service Binding "BACKEND" pointing to "rc-pulse-backend" in Cloudflare Pages Settings.'
     }),
     { headers, status: 404 }
   )
 }
+

@@ -4,3 +4,7 @@ pages_build_output_dir = "./dist"
 
 [vars]
 RINGCENTRAL_SERVER_URL = "https://platform.ringcentral.com"
+
+[[services]]
+binding = "BACKEND"
+service = "rc-pulse-backend"

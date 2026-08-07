@@ -38,6 +38,33 @@ rc-pulse/
 
 ---
 
+## Connecting Cloudflare Pages to Cloudflare Worker
+
+Cloudflare Pages connects to the `rc-pulse-backend` Worker seamlessly using **Service Bindings**.
+
+### Automatic Connection (Configured in `wrangler.toml`)
+The root `wrangler.toml` includes a Service Binding configuration:
+
+```toml
+[[services]]
+binding = "BACKEND"
+service = "rc-pulse-backend"
+```
+
+When deployed via `wrangler pages deploy` or GitHub Actions, Cloudflare Pages will automatically bind the Worker to `env.BACKEND`. All requests to `/api/*` and `/oauth/*` are forwarded directly to `rc-pulse-backend` without extra network latency or CORS issues.
+
+### Manual Connection via Cloudflare Dashboard (Optional)
+If deploying via the Cloudflare Dashboard interface:
+1. Go to **Cloudflare Dashboard > Workers & Pages > Pages > rc-pulse**.
+2. Select **Settings > Functions**.
+3. Scroll to **Service Bindings** and click **Add binding**:
+   - **Variable name**: `BACKEND`
+   - **Service**: `rc-pulse-backend`
+   - **Environment**: `Production`
+4. Alternatively, under **Environment Variables**, you can add `BACKEND_URL` pointing to `https://rc-pulse-backend.<your-subdomain>.workers.dev`.
+
+---
+
 ## Option 1: Automatic Deployment via GitHub to Cloudflare
 
 The repository includes a ready-to-use GitHub Actions workflow (`.github/workflows/deploy.yml`).

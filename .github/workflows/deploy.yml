@@ -25,7 +25,6 @@ jobs:
           apiToken: ${{ secrets.CLOUDFLARE_API_TOKEN }}
           accountId: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
           workingDirectory: 'backend'
-          wranglerVersion: '3.109.1'
           command: deploy worker.ts --name rc-pulse-backend
 
   deploy-frontend-pages:
@@ -51,5 +50,4 @@ jobs:
         with:
           apiToken: ${{ secrets.CLOUDFLARE_API_TOKEN }}
           accountId: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
-          wranglerVersion: '3.109.1'
-          command: pages deploy dist --project-name=rc-pulse --branch=${{ github.ref_name }} --commit-dirty=true
+          command: pages deploy dist --project-name=rc-pulse --branch=${{ github.ref_name }}

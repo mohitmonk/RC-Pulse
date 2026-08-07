@@ -49,6 +49,141 @@ export default function App() {
       }
     }
 
+    // Handle client-side OAuth code exchange if redirect lands on SPA with ?code=
+    const handleClientOAuthCode = async () => {
+      const searchParams = new URLSearchParams(window.location.search)
+      const code = searchParams.get('code')
+      const stateParam = searchParams.get('state')
+
+      if (!code) return
+
+      try {
+        let serverUrl = 'https://platform.ringcentral.com'
+        let clientId = ''
+        let clientSecret = ''
+        let redirectUri = `${window.location.origin}/oauth/callback`
+
+        if (stateParam) {
+          try {
+            const decoded = JSON.parse(atob(decodeURIComponent(stateParam)))
+            if (decoded.serverUrl) serverUrl = decoded.serverUrl
+            if (decoded.clientId) clientId = decoded.clientId
+            if (decoded.clientSecret) clientSecret = decoded.clientSecret
+            if (decoded.redirectUri) redirectUri = decoded.redirectUri
+          } catch (e) {}
+        }
+
+        const pending = localStorage.getItem('rc_pending_oauth')
+        if (pending) {
+          try {
+            const parsed = JSON.parse(pending)
+            if (!clientId && parsed.clientId) clientId = parsed.clientId
+            if (!clientSecret && parsed.clientSecret) clientSecret = parsed.clientSecret
+            if (parsed.serverUrl) serverUrl = parsed.serverUrl
+            if (parsed.redirectUri) redirectUri = parsed.redirectUri
+          } catch (e) {}
+        }
+
+        let accessToken = ''
+        let userProfile: any = null
+
+        // Try backend exchange first
+        try {
+          const res = await fetch(`/api/auth/callback${window.location.search}`)
+          const contentType = res.headers.get('content-type') || ''
+          if (res.ok && contentType.includes('application/json')) {
+            const data = await res.json()
+            if (data.success && data.accessToken) {
+              accessToken = data.accessToken
+              userProfile = data.user
+            }
+          }
+        } catch (e) {}
+
+        // Fallback: Direct client-side code exchange with RingCentral REST API
+        if (!accessToken && code) {
+          const tokenUrl = `${serverUrl.replace(/\/$/, '')}/restapi/oauth/token`
+          const bodyParams = new URLSearchParams({
+            grant_type: 'authorization_code',
+            code,
+            redirect_uri: redirectUri
+          })
+
+          const headers: Record<string, string> = {
+            'Content-Type': 'application/x-www-form-urlencoded'
+          }
+          if (clientId && clientSecret) {
+            headers['Authorization'] = `Basic ${btoa(`${clientId}:${clientSecret}`)}`
+          } else if (clientId) {
+            bodyParams.append('client_id', clientId)
+          }
+
+          const tokenRes = await fetch(tokenUrl, {
+            method: 'POST',
+            headers,
+            body: bodyParams.toString()
+          })
+
+          if (tokenRes.ok) {
+            const tokenData = await tokenRes.json()
+            accessToken = tokenData.access_token
+
+            const profileRes = await fetch(`${serverUrl.replace(/\/$/, '')}/restapi/v1.0/account/~/extension/~`, {
+              headers: { Authorization: `Bearer ${accessToken}` }
+            })
+            if (profileRes.ok) {
+              const extInfo = await profileRes.json()
+              const firstName = extInfo.contact?.firstName || ''
+              const lastName = extInfo.contact?.lastName || ''
+              const name = extInfo.name || `${firstName} ${lastName}`.trim() || `Extension ${extInfo.extensionNumber || extInfo.id}`
+
+              userProfile = {
+                id: String(extInfo.id),
+                extensionId: String(extInfo.id),
+                accountId: String(extInfo.account?.id || 'acc_active'),
+                name,
+                firstName: firstName || 'RingCentral',
+                lastName: lastName || 'User',
+                email: extInfo.contact?.email || 'user@ringcentral.com',
+                extensionNumber: extInfo.extensionNumber || '101',
+                status: extInfo.status || 'Enabled',
+                contactPhone: extInfo.contact?.businessPhone || '',
+                companyName: extInfo.account?.name || 'RingCentral Account',
+                presenceStatus: 'Available',
+                userStatus: 'Online'
+              }
+            }
+          }
+        }
+
+        if (accessToken && userProfile) {
+          const payload = {
+            type: 'RC_AUTH_SUCCESS',
+            accessToken,
+            user: userProfile
+          }
+          localStorage.setItem('rc_oauth_login_data', JSON.stringify(payload))
+          localStorage.removeItem('rc_pending_oauth')
+
+          if (window.opener) {
+            window.opener.postMessage(payload, '*')
+            setTimeout(() => window.close(), 500)
+            return
+          } else {
+            setUser(userProfile)
+            setTokens(accessToken, null, Date.now() + 3600000)
+            window.history.replaceState({}, document.title, '/')
+          }
+        }
+      } catch (err) {
+        console.error('Client OAuth Exchange Error:', err)
+      }
+    }
+
+    if (window.location.search.includes('code=')) {
+      handleClientOAuthCode()
+    }
+
     checkStoredOAuth()
 
     // Sync session on startup with backend
@@ -83,6 +218,12 @@ export default function App() {
       syncSession()
     }
 
+    const handleStorage = (e: StorageEvent) => {
+      if (e.key === 'rc_oauth_login_data') {
+        checkStoredOAuth()
+      }
+    }
+
     // Listen for OAuth completion from popup window
     const handleMessage = (event: MessageEvent) => {
       if (event.data?.type === 'RC_AUTH_SUCCESS') {
@@ -93,10 +234,12 @@ export default function App() {
     }
 
     window.addEventListener('focus', handleFocus)
+    window.addEventListener('storage', handleStorage)
     window.addEventListener('message', handleMessage)
     return () => {
       clearInterval(interval)
       window.removeEventListener('focus', handleFocus)
+      window.removeEventListener('storage', handleStorage)
       window.removeEventListener('message', handleMessage)
     }
   }, [setUser, setTokens])

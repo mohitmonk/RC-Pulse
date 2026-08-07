@@ -170,7 +170,15 @@ async function startServer() {
       serverUrl: targetServer
     })
 
-    const authUrl = `${targetServer.replace(/\/$/, '')}/restapi/oauth/authorize?response_type=code&client_id=${encodeURIComponent(targetClientId)}&redirect_uri=${encodeURIComponent(finalRedirectUri)}&state=rc_pulse_state`
+    const stateObj = {
+      clientId: targetClientId,
+      clientSecret: targetClientSecret,
+      serverUrl: targetServer,
+      redirectUri: finalRedirectUri
+    }
+    const stateStr = Buffer.from(JSON.stringify(stateObj)).toString('base64')
+
+    const authUrl = `${targetServer.replace(/\/$/, '')}/restapi/oauth/authorize?response_type=code&client_id=${encodeURIComponent(targetClientId)}&redirect_uri=${encodeURIComponent(finalRedirectUri)}&state=${encodeURIComponent(stateStr)}`
 
     res.json({
       success: true,
@@ -184,6 +192,7 @@ async function startServer() {
     const code = req.query.code as string
     const error = req.query.error as string
     const errorDesc = req.query.error_description as string
+    const rawState = req.query.state as string
 
     if (error || !code) {
       return res.status(400).send(`
@@ -204,13 +213,22 @@ async function startServer() {
     try {
       const host = req.get('host') || 'localhost:3000'
       const protocol = req.protocol || 'http'
-      const redirectUri = pendingOAuthState?.redirectUri || `${protocol}://${host}/oauth/callback`
+      let redirectUri = pendingOAuthState?.redirectUri || `${protocol}://${host}/oauth/callback`
+      let clientId = pendingOAuthState?.clientId || process.env.RINGCENTRAL_CLIENT_ID || '8EYSDHink0fdsQ9W3c4fOj'
+      let clientSecret = pendingOAuthState?.clientSecret || process.env.RINGCENTRAL_CLIENT_SECRET || 'eJ1d3GrHSE2dmQQb33SKQF2YiCZgSp4bAd2DbaFBh4po'
+      let serverUrl = pendingOAuthState?.serverUrl || process.env.RINGCENTRAL_SERVER_URL || 'https://platform.ringcentral.com'
 
-      const clientToUse = activeRcClient || (pendingOAuthState ? new RingCentralClient(pendingOAuthState) : new RingCentralClient({
-        clientId: process.env.RINGCENTRAL_CLIENT_ID || '8EYSDHink0fdsQ9W3c4fOj',
-        clientSecret: process.env.RINGCENTRAL_CLIENT_SECRET || 'eJ1d3GrHSE2dmQQb33SKQF2YiCZgSp4bAd2DbaFBh4po',
-        serverUrl: 'https://platform.ringcentral.com'
-      }))
+      if (rawState && rawState !== 'rc_pulse_state') {
+        try {
+          const decoded = JSON.parse(Buffer.from(decodeURIComponent(rawState), 'base64').toString('utf8'))
+          if (decoded.clientId) clientId = decoded.clientId
+          if (decoded.clientSecret) clientSecret = decoded.clientSecret
+          if (decoded.serverUrl) serverUrl = decoded.serverUrl
+          if (decoded.redirectUri) redirectUri = decoded.redirectUri
+        } catch (e) {}
+      }
+
+      const clientToUse = new RingCentralClient({ clientId, clientSecret, serverUrl })
 
       const tokens = await clientToUse.exchangeCodeForToken(code, '', redirectUri)
 
@@ -220,13 +238,41 @@ async function startServer() {
         expiresAt: tokens.expiresAt,
         tokenType: tokens.tokenType || 'Bearer',
         scope: tokens.scope || '',
-        serverUrl: pendingOAuthState?.serverUrl || 'https://platform.ringcentral.com',
-        clientId: pendingOAuthState?.clientId || '8EYSDHink0fdsQ9W3c4fOj',
-        clientSecret: pendingOAuthState?.clientSecret || 'eJ1d3GrHSE2dmQQb33SKQF2YiCZgSp4bAd2DbaFBh4po',
+        serverUrl,
+        clientId,
+        clientSecret,
         isDemoMode: false
       })
 
       activeRcClient = clientToUse
+
+      let userProfile = null
+      try {
+        const profileRes = await fetch(`${serverUrl.replace(/\/$/, '')}/restapi/v1.0/account/~/extension/~`, {
+          headers: { Authorization: `Bearer ${tokens.accessToken}` }
+        })
+        if (profileRes.ok) {
+          const extInfo: any = await profileRes.json()
+          const firstName = extInfo.contact?.firstName || ''
+          const lastName = extInfo.contact?.lastName || ''
+          const name = extInfo.name || `${firstName} ${lastName}`.trim() || `Extension ${extInfo.extensionNumber || extInfo.id}`
+          userProfile = {
+            id: String(extInfo.id),
+            extensionId: String(extInfo.id),
+            accountId: String(extInfo.account?.id || 'acc_active'),
+            name,
+            firstName: firstName || 'RingCentral',
+            lastName: lastName || 'User',
+            email: extInfo.contact?.email || 'user@ringcentral.com',
+            extensionNumber: extInfo.extensionNumber || '101',
+            status: extInfo.status || 'Enabled',
+            contactPhone: extInfo.contact?.businessPhone || '',
+            companyName: extInfo.account?.name || 'RingCentral Account',
+            presenceStatus: 'Available',
+            userStatus: 'Online'
+          }
+        }
+      } catch (e) {}
 
       res.send(`
         <!DOCTYPE html>
@@ -246,8 +292,14 @@ async function startServer() {
               <p>Authentication successful. Returning to RC Pulse dashboard...</p>
               <script>
                 try {
+                  const payload = {
+                    type: 'RC_AUTH_SUCCESS',
+                    accessToken: ${JSON.stringify(tokens.accessToken)},
+                    user: ${JSON.stringify(userProfile)}
+                  };
+                  localStorage.setItem('rc_oauth_login_data', JSON.stringify(payload));
                   if (window.opener) {
-                    window.opener.postMessage({ type: 'RC_AUTH_SUCCESS' }, '*');
+                    window.opener.postMessage(payload, '*');
                   }
                 } catch(e) {}
                 setTimeout(function() {
@@ -255,12 +307,12 @@ async function startServer() {
                     if (window.opener) {
                       window.close();
                     } else {
-                      window.location.href = '/';
+                      window.location.href = '/?oauth_success=true';
                     }
                   } catch(e) {
                     window.location.href = '/';
                   }
-                }, 600);
+                }, 500);
               </script>
             </div>
           </body>

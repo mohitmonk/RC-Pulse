@@ -27,17 +27,33 @@ export const Login: React.FC = () => {
     if (isWaitingOAuth) {
       timer = setInterval(async () => {
         try {
+          // Check local storage from popup
+          const stored = localStorage.getItem('rc_oauth_login_data')
+          if (stored) {
+            const data = JSON.parse(stored)
+            if (data && data.user && data.accessToken) {
+              setUser(data.user)
+              useAuthStore.getState().setTokens(data.accessToken, null, Date.now() + 3600000)
+              localStorage.removeItem('rc_oauth_login_data')
+              setIsWaitingOAuth(false)
+              return
+            }
+          }
+
           const res = await fetch('/api/user/me')
           const contentType = res.headers.get('content-type') || ''
           if (res.ok && contentType.includes('application/json')) {
             const data = await res.json()
             if (data.success && data.user) {
               setUser(data.user)
+              if (data.accessToken) {
+                useAuthStore.getState().setTokens(data.accessToken, null, Date.now() + 3600000)
+              }
               setIsWaitingOAuth(false)
             }
           }
         } catch (e) {}
-      }, 1500)
+      }, 1200)
     }
     return () => clearInterval(timer)
   }, [isWaitingOAuth, setUser])
@@ -47,20 +63,51 @@ export const Login: React.FC = () => {
   const checkSessionNow = async () => {
     try {
       setIsCheckingSession(true)
-      const res = await fetch('/api/user/me')
-      const contentType = res.headers.get('content-type') || ''
-      if (!contentType.includes('application/json')) {
-        setFormError('Static host detected (e.g. Cloudflare Pages). Please sign in using your JWT Token or Access Token below for direct connection!')
-        setShowAdvanced(true)
-        return false
+      setFormError(null)
+
+      // 1. Check if authStore is already authenticated
+      const store = useAuthStore.getState()
+      if (store.isAuthenticated && store.user) {
+        return true
       }
-      if (res.ok) {
-        const data = await res.json()
-        if (data.success && data.user) {
-          setUser(data.user)
-          return true
+
+      // 2. Check localStorage for OAuth callback data
+      const stored = localStorage.getItem('rc_oauth_login_data')
+      if (stored) {
+        try {
+          const parsed = JSON.parse(stored)
+          if (parsed && parsed.user && parsed.accessToken) {
+            setUser(parsed.user)
+            useAuthStore.getState().setTokens(parsed.accessToken, null, Date.now() + 3600000)
+            localStorage.removeItem('rc_oauth_login_data')
+            setFormError(null)
+            return true
+          }
+        } catch (e) {}
+        localStorage.removeItem('rc_oauth_login_data')
+      }
+
+      // 3. Try checking backend session (/api/user/me)
+      const token = useAuthStore.getState().accessToken
+      const headers: Record<string, string> = {}
+      if (token) headers['Authorization'] = `Bearer ${token}`
+
+      const res = await fetch('/api/user/me', { headers }).catch(() => null)
+      if (res) {
+        const contentType = res.headers.get('content-type') || ''
+        if (res.ok && contentType.includes('application/json')) {
+          const data = await res.json()
+          if (data.success && data.user) {
+            setUser(data.user)
+            if (data.accessToken) {
+              useAuthStore.getState().setTokens(data.accessToken, null, Date.now() + 3600000)
+            }
+            setFormError(null)
+            return true
+          }
         }
       }
+
       setFormError('No active RingCentral session found yet. Please complete authentication in the RingCentral window.')
     } catch (e: any) {
       setFormError('Failed to check authentication status.')
@@ -69,6 +116,7 @@ export const Login: React.FC = () => {
     }
     return false
   }
+
   const handleCopyUri = () => {
     if (navigator.clipboard) {
       navigator.clipboard.writeText(redirectUri)
@@ -86,6 +134,15 @@ export const Login: React.FC = () => {
       setShowAdvanced(true)
       return
     }
+
+    try {
+      localStorage.setItem('rc_pending_oauth', JSON.stringify({
+        serverUrl,
+        clientId: clientId.trim(),
+        clientSecret: clientSecret.trim(),
+        redirectUri: redirectUri.trim()
+      }))
+    } catch (e) {}
 
     setIsWaitingOAuth(true)
     await loginWithOAuth({

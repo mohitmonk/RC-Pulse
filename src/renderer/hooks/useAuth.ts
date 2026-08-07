@@ -141,22 +141,41 @@ export function useAuth() {
       if (window.electron) {
         await window.electron.auth.login()
       } else {
-        const res = await fetch('/api/auth/login', {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify(opts || {})
-        })
-        const contentType = res.headers.get('content-type') || ''
-        if (!contentType.includes('application/json') || res.status === 405) {
-          throw new Error('RingCentral Browser OAuth requires a backend server or Cloudflare Worker Proxy. If using static Cloudflare Pages, please sign in with your RingCentral JWT Token below!')
+        let authUrl = ''
+        try {
+          const res = await fetch('/api/auth/login', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify(opts || {})
+          }).catch(() => null)
+
+          if (res) {
+            const contentType = res.headers.get('content-type') || ''
+            if (res.ok && contentType.includes('application/json')) {
+              const data = await res.json()
+              if (data.success && data.authUrl) {
+                authUrl = data.authUrl
+              }
+            }
+          }
+        } catch (e) {}
+
+        // Fallback: Construct authUrl client-side if backend API is not available
+        if (!authUrl) {
+          const serverUrl = opts?.serverUrl || 'https://platform.ringcentral.com'
+          const clientId = opts?.clientId || ''
+          const redirectUri = opts?.redirectUri || `${window.location.origin}/oauth/callback`
+          const stateObj = {
+            serverUrl,
+            clientId,
+            clientSecret: opts?.clientSecret || '',
+            redirectUri
+          }
+          const stateStr = btoa(JSON.stringify(stateObj))
+          authUrl = `${serverUrl.replace(/\/$/, '')}/restapi/oauth/authorize?response_type=code&client_id=${encodeURIComponent(clientId)}&redirect_uri=${encodeURIComponent(redirectUri)}&state=${encodeURIComponent(stateStr)}`
         }
-        const data = await res.json()
-        if (!res.ok || !data.success) {
-          throw new Error(data.error || 'Failed to initialize RingCentral OAuth')
-        }
-        if (data.authUrl) {
-          window.open(data.authUrl, '_blank')
-        }
+
+        window.open(authUrl, 'rc_oauth_popup', 'width=600,height=700')
       }
     } catch (err: any) {
       useAuthStore.getState().setError(err.message || 'OAuth flow failed')

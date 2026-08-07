@@ -1,84 +1,89 @@
-# RC Pulse Deployment Guide
+# RC Pulse - Deployment & Architecture Guide
 
-This repository is pre-configured for full-stack deployment on **Firebase / GCP Cloud Run** and **Cloudflare Pages / Workers**.
-
----
-
-## Option 1: Deploying to Firebase & GCP Cloud Run (Recommended for Full-Stack Node API)
-
-Since RC Pulse includes a Node.js Express backend proxy for RingCentral OAuth token exchanges and API routing, deploying via **Google Cloud Run** + **Firebase Hosting** (or **Firebase App Hosting**) is the seamless method.
-
-### Quick Deployment via Google Cloud Run (Single Command)
-
-1. Install the Google Cloud SDK (`gcloud`) and log in:
-   ```bash
-   gcloud auth login
-   gcloud config set project YOUR_GCP_PROJECT_ID
-   ```
-2. Deploy directly from the source code:
-   ```bash
-   gcloud run deploy rc-pulse --source . --port 3000 --allow-unauthenticated --region us-central1
-   ```
-3. Copy the output HTTPS URL (e.g. `https://rc-pulse-xxxxxx.a.run.app`).
-
-### Deploying via Firebase Hosting + Cloud Run
-
-1. Install Firebase CLI:
-   ```bash
-   npm install -g firebase-tools
-   firebase login
-   ```
-2. Initialize Firebase in your project:
-   ```bash
-   firebase use --add YOUR_FIREBASE_PROJECT_ID
-   ```
-3. Build the production application:
-   ```bash
-   npm run build
-   ```
-4. Deploy to Firebase:
-   ```bash
-   firebase deploy
-   ```
+RC Pulse is structured into modular frontend and backend folders for easy multi-platform deployment and GitHub CI/CD automation.
 
 ---
 
-## Option 2: Deploying to Cloudflare Pages
+## Directory Structure
 
-### Deploying Static Frontend with Cloudflare Pages
-
-1. Install Wrangler CLI:
-   ```bash
-   npm install -g wrangler
-   wrangler login
-   ```
-2. Build the project:
-   ```bash
-   npm run build
-   ```
-3. Deploy the build output to Cloudflare Pages:
-   ```bash
-   npx wrangler pages deploy dist --project-name=rc-pulse
-   ```
-
-### Connecting Environment Variables in Cloudflare
-In the Cloudflare Dashboard under **Pages > rc-pulse > Settings > Environment Variables**, add:
-- `RINGCENTRAL_CLIENT_ID`: Your RingCentral App Key
-- `RINGCENTRAL_CLIENT_SECRET`: Your RingCentral App Secret
-- `RINGCENTRAL_SERVER_URL`: `https://platform.ringcentral.com`
+```text
+rc-pulse/
+├── backend/
+│   ├── worker.ts         # Cloudflare Worker API entry point (Serverless API)
+│   ├── server.ts         # Express Node.js Backend Server (Docker / Cloud Run)
+│   └── wrangler.toml     # Cloudflare Worker deployment configuration
+├── functions/
+│   └── api/[[path]].ts   # Cloudflare Pages Functions routing
+├── src/
+│   ├── renderer/         # React Frontend UI (Dashboard, Auth, Analytics)
+│   ├── main/             # Shared Services (RingCentral REST API, Analytics)
+│   └── types/            # Shared TypeScript Interfaces & Types
+├── .github/
+│   └── workflows/
+│       └── deploy.yml    # GitHub Actions Workflow for automated Cloudflare deployment
+├── DEPLOYMENT.md
+├── Dockerfile            # Multi-stage Dockerfile for Cloud Run / Container deployment
+├── package.json
+└── wrangler.toml         # Cloudflare Pages configuration
+```
 
 ---
 
-## Option 3: Standard Docker Container Deployment
+## Option 1: Automatic Deployment via GitHub to Cloudflare
 
-RC Pulse includes a production-ready multi-stage `Dockerfile`.
+The repository includes a ready-to-use GitHub Actions workflow (`.github/workflows/deploy.yml`).
 
-1. Build the Docker image:
+### Setup Instructions for GitHub + Cloudflare:
+
+1. Push this repository to your GitHub account:
    ```bash
-   docker build -t rc-pulse .
+   git init
+   git add .
+   git commit -m "Initial commit of RC Pulse"
+   git remote add origin https://github.com/YOUR_USERNAME/rc-pulse.git
+   git push -u origin main
    ```
-2. Run the container:
-   ```bash
-   docker run -d -p 3000:3000 --name rc-pulse-app rc-pulse
-   ```
-3. Open `http://localhost:3000` in your browser.
+
+2. Retrieve your Cloudflare credentials:
+   - **Cloudflare API Token**: Go to **Cloudflare Dashboard > My Profile > API Tokens > Create Token > Edit Cloudflare Workers**.
+   - **Cloudflare Account ID**: Found on the right sidebar of any domain in your Cloudflare dashboard.
+
+3. Add GitHub Repository Secrets:
+   - Go to your GitHub repository **Settings > Secrets and variables > Actions**.
+   - Add Secret: `CLOUDFLARE_API_TOKEN` = *(Your Cloudflare API Token)*
+   - Add Secret: `CLOUDFLARE_ACCOUNT_ID` = *(Your Cloudflare Account ID)*
+
+4. Push any commit to `main` — GitHub Actions will automatically deploy:
+   - **Frontend** to Cloudflare Pages (`rc-pulse`)
+   - **Backend Worker** to Cloudflare Workers (`rc-pulse-backend`)
+
+---
+
+## Option 2: Direct CLI Deployment to Cloudflare
+
+### Deploy Backend Worker:
+```bash
+cd backend
+npx wrangler deploy worker.ts --name rc-pulse-backend
+```
+
+### Deploy Frontend Pages:
+```bash
+npm run build
+npx wrangler pages deploy dist --project-name=rc-pulse
+```
+
+---
+
+## Option 3: Docker / Google Cloud Run / Firebase Deployment
+
+### Run Container Locally:
+```bash
+docker build -t rc-pulse .
+docker run -p 3000:3000 rc-pulse
+```
+
+### Deploy to Google Cloud Run:
+```bash
+gcloud run deploy rc-pulse --source . --port 3000 --allow-unauthenticated --region us-central1
+```

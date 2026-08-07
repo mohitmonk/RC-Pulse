@@ -1,5 +1,6 @@
 import { useAuthStore } from '../store/authStore'
 import { UserProfile } from '../../types/user'
+import { encodeOAuthState } from '../lib/oauthUtils'
 
 export function useAuth() {
   const { isAuthenticated, isLoading, user, error, isDemoMode, setUser, logout, setDemoMode } = useAuthStore()
@@ -165,13 +166,12 @@ export function useAuth() {
           const serverUrl = opts?.serverUrl || 'https://platform.ringcentral.com'
           const clientId = opts?.clientId || ''
           const redirectUri = opts?.redirectUri || `${window.location.origin}/oauth/callback`
-          const stateObj = {
+          const stateStr = encodeOAuthState({
             serverUrl,
             clientId,
             clientSecret: opts?.clientSecret || '',
             redirectUri
-          }
-          const stateStr = btoa(JSON.stringify(stateObj))
+          })
           authUrl = `${serverUrl.replace(/\/$/, '')}/restapi/oauth/authorize?response_type=code&client_id=${encodeURIComponent(clientId)}&redirect_uri=${encodeURIComponent(redirectUri)}&state=${encodeURIComponent(stateStr)}`
         }
 

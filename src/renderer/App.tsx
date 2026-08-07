@@ -7,6 +7,7 @@ import { Login } from './pages/Login'
 import { Dashboard } from './pages/Dashboard'
 import { SettingsPage } from './pages/Settings'
 import { CallTable } from './components/CallTable'
+import { decodeOAuthState } from './lib/oauthUtils'
 
 const queryClient = new QueryClient({
   defaultOptions: {
@@ -64,13 +65,13 @@ export default function App() {
         let redirectUri = `${window.location.origin}/oauth/callback`
 
         if (stateParam) {
-          try {
-            const decoded = JSON.parse(atob(decodeURIComponent(stateParam)))
+          const decoded = decodeOAuthState(stateParam)
+          if (decoded) {
             if (decoded.serverUrl) serverUrl = decoded.serverUrl
             if (decoded.clientId) clientId = decoded.clientId
             if (decoded.clientSecret) clientSecret = decoded.clientSecret
             if (decoded.redirectUri) redirectUri = decoded.redirectUri
-          } catch (e) {}
+          }
         }
 
         const pending = localStorage.getItem('rc_pending_oauth')

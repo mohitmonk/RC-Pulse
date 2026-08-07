@@ -108,7 +108,23 @@ export const Login: React.FC = () => {
         }
       }
 
-      setFormError('No active RingCentral session found yet. Please complete authentication in the RingCentral window.')
+      // 4. If user entered a JWT or Access Token, try logging in with it
+      if (jwtToken.trim() || accessToken.trim()) {
+        try {
+          await loginWithRealAccount({
+            clientId: clientId.trim(),
+            clientSecret: clientSecret.trim(),
+            serverUrl,
+            jwtToken: jwtToken.trim(),
+            accessToken: accessToken.trim()
+          })
+          setFormError(null)
+          return true
+        } catch (e) {}
+      }
+
+      setFormError('No active RingCentral session found yet. Please complete authentication in the RingCentral window, or expand "Sign in with JWT or Direct Access Token" below.')
+      setShowAdvanced(true)
     } catch (e: any) {
       setFormError('Failed to check authentication status.')
     } finally {

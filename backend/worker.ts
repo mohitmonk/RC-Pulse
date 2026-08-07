@@ -1,6 +1,31 @@
 // Cloudflare Worker API for RC Pulse Backend
 // Deployable directly to Cloudflare Workers via Wrangler or GitHub Actions
 
+function encodeOAuthState(payload: any): string {
+  try {
+    const json = JSON.stringify({ ...payload, timestamp: Date.now() })
+    const base64 = btoa(encodeURIComponent(json).replace(/%([0-9A-F]{2})/g, (_, p1) => String.fromCharCode(parseInt(p1, 16))))
+    return base64.replace(/\+/g, '-').replace(/\//g, '_').replace(/=+$/, '')
+  } catch (e) {
+    return 'rc_pulse_state'
+  }
+}
+
+function decodeOAuthState(stateStr: string): any {
+  if (!stateStr || stateStr === 'rc_pulse_state') return null
+  try {
+    let clean = decodeURIComponent(stateStr).trim()
+    clean = clean.replace(/ /g, '+').replace(/-/g, '+').replace(/_/g, '/')
+    while (clean.length % 4) {
+      clean += '='
+    }
+    const json = decodeURIComponent(Array.prototype.map.call(atob(clean), (c: string) => '%' + ('00' + c.charCodeAt(0).toString(16)).slice(-2)).join(''))
+    return JSON.parse(json)
+  } catch (e) {
+    return null
+  }
+}
+
 export interface Env {
   RINGCENTRAL_CLIENT_ID?: string
   RINGCENTRAL_CLIENT_SECRET?: string
@@ -288,13 +313,12 @@ export default {
           ? userRedirectUri.trim()
           : `${origin}/oauth/callback`
 
-        const stateObj = {
+        const stateStr = encodeOAuthState({
           clientId: targetClientId,
           clientSecret: targetClientSecret,
           serverUrl: targetServer,
           redirectUri: finalRedirectUri
-        }
-        const stateStr = btoa(JSON.stringify(stateObj))
+        })
 
         const authUrl = `${targetServer.replace(/\/$/, '')}/restapi/oauth/authorize?response_type=code&client_id=${encodeURIComponent(targetClientId)}&redirect_uri=${encodeURIComponent(finalRedirectUri)}&state=${encodeURIComponent(stateStr)}`
 
@@ -337,14 +361,12 @@ export default {
       let redirectUri = `${url.origin}/oauth/callback`
 
       if (rawState) {
-        try {
-          const decoded = JSON.parse(atob(decodeURIComponent(rawState)))
+        const decoded = decodeOAuthState(rawState)
+        if (decoded) {
           if (decoded.clientId) clientId = decoded.clientId
           if (decoded.clientSecret) clientSecret = decoded.clientSecret
           if (decoded.serverUrl) serverUrl = decoded.serverUrl
           if (decoded.redirectUri) redirectUri = decoded.redirectUri
-        } catch (e) {
-          // Ignore state parsing errors fallback to defaults
         }
       }
 

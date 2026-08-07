@@ -20,6 +20,31 @@ async function startServer() {
     res.json({ status: 'ok', app: 'RC Pulse Express Backend', version: '1.0.0' })
   })
 
+function encodeOAuthState(payload: any): string {
+  try {
+    const json = JSON.stringify({ ...payload, timestamp: Date.now() })
+    const base64 = Buffer.from(json, 'utf8').toString('base64')
+    return base64.replace(/\+/g, '-').replace(/\//g, '_').replace(/=+$/, '')
+  } catch (e) {
+    return 'rc_pulse_state'
+  }
+}
+
+function decodeOAuthState(stateStr: string): any {
+  if (!stateStr || stateStr === 'rc_pulse_state') return null
+  try {
+    let clean = decodeURIComponent(stateStr).trim()
+    clean = clean.replace(/ /g, '+').replace(/-/g, '+').replace(/_/g, '/')
+    while (clean.length % 4) {
+      clean += '='
+    }
+    const json = Buffer.from(clean, 'base64').toString('utf8')
+    return JSON.parse(json)
+  } catch (e) {
+    return null
+  }
+}
+
   let activeRcClient: RingCentralClient | null = null
 
   async function getActiveClient(): Promise<RingCentralClient | null> {
@@ -170,13 +195,12 @@ async function startServer() {
       serverUrl: targetServer
     })
 
-    const stateObj = {
+    const stateStr = encodeOAuthState({
       clientId: targetClientId,
       clientSecret: targetClientSecret,
       serverUrl: targetServer,
       redirectUri: finalRedirectUri
-    }
-    const stateStr = Buffer.from(JSON.stringify(stateObj)).toString('base64')
+    })
 
     const authUrl = `${targetServer.replace(/\/$/, '')}/restapi/oauth/authorize?response_type=code&client_id=${encodeURIComponent(targetClientId)}&redirect_uri=${encodeURIComponent(finalRedirectUri)}&state=${encodeURIComponent(stateStr)}`
 
@@ -218,14 +242,14 @@ async function startServer() {
       let clientSecret = pendingOAuthState?.clientSecret || process.env.RINGCENTRAL_CLIENT_SECRET || 'eJ1d3GrHSE2dmQQb33SKQF2YiCZgSp4bAd2DbaFBh4po'
       let serverUrl = pendingOAuthState?.serverUrl || process.env.RINGCENTRAL_SERVER_URL || 'https://platform.ringcentral.com'
 
-      if (rawState && rawState !== 'rc_pulse_state') {
-        try {
-          const decoded = JSON.parse(Buffer.from(decodeURIComponent(rawState), 'base64').toString('utf8'))
+      if (rawState) {
+        const decoded = decodeOAuthState(rawState)
+        if (decoded) {
           if (decoded.clientId) clientId = decoded.clientId
           if (decoded.clientSecret) clientSecret = decoded.clientSecret
           if (decoded.serverUrl) serverUrl = decoded.serverUrl
           if (decoded.redirectUri) redirectUri = decoded.redirectUri
-        } catch (e) {}
+        }
       }
 
       const clientToUse = new RingCentralClient({ clientId, clientSecret, serverUrl })

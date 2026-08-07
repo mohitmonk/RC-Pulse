@@ -56,7 +56,7 @@ export function useAuth() {
     }
   }
 
-  const loginWithOAuth = async () => {
+  const loginWithOAuth = async (opts?: { serverUrl?: string; clientId?: string }) => {
     try {
       useAuthStore.getState().setLoading(true)
       useAuthStore.getState().setError(null)
@@ -64,7 +64,11 @@ export function useAuth() {
       if (window.electron) {
         await window.electron.auth.login()
       } else {
-        const res = await fetch('/api/auth/login', { method: 'POST' })
+        const res = await fetch('/api/auth/login', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify(opts || {})
+        })
         const data = await res.json()
         if (data.authUrl) {
           window.open(data.authUrl, '_blank')

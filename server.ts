@@ -111,9 +111,22 @@ async function startServer() {
   })
 
   app.post('/api/auth/login', (req, res) => {
+    const { serverUrl, clientId } = req.body || {}
+    const targetServer = serverUrl || process.env.RINGCENTRAL_SERVER_URL || 'https://platform.devtest.ringcentral.com'
+    const targetClientId = clientId || process.env.RINGCENTRAL_CLIENT_ID || ''
+
+    let authUrl = ''
+    if (targetClientId) {
+      const redirectUri = encodeURIComponent('http://localhost:3000/oauth/callback')
+      authUrl = `${targetServer.replace(/\/$/, '')}/restapi/oauth/authorize?response_type=code&client_id=${encodeURIComponent(targetClientId)}&redirect_uri=${redirectUri}&state=rc_pulse_state`
+    } else {
+      // Direct login landing page on RingCentral for browser login
+      authUrl = `${targetServer.replace(/\/$/, '')}/restapi/oauth/authorize`
+    }
+
     res.json({
       success: true,
-      authUrl: 'http://localhost:3000/oauth/callback?code=mock_rc_code_9912&state=mock_state'
+      authUrl
     })
   })
 

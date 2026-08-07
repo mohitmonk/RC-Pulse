@@ -1,4 +1,4 @@
-import React from 'react'
+import React, { useEffect } from 'react'
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
 import { useAuthStore } from './store/authStore'
 import { useDashboardStore } from './store/dashboardStore'
@@ -18,8 +18,28 @@ const queryClient = new QueryClient({
 })
 
 export default function App() {
-  const { isAuthenticated } = useAuthStore()
+  const { isAuthenticated, setUser, logout, setDemoMode } = useAuthStore()
   const { activeTab } = useDashboardStore()
+
+  useEffect(() => {
+    // Sync session on startup with backend
+    const syncSession = async () => {
+      try {
+        const res = await fetch('/api/user/me')
+        if (res.ok) {
+          const data = await res.json()
+          if (data.success && data.user) {
+            setUser(data.user)
+            setDemoMode(Boolean(data.isDemoMode))
+          }
+        }
+      } catch (err) {
+        console.warn('Session sync error:', err)
+      }
+    }
+
+    syncSession()
+  }, [])
 
   if (!isAuthenticated) {
     return <Login />
@@ -43,3 +63,4 @@ export default function App() {
     </QueryClientProvider>
   )
 }
+

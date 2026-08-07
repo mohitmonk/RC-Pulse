@@ -17,6 +17,13 @@ export const Login: React.FC = () => {
   const handleBrowserLogin = (e: React.FormEvent) => {
     e.preventDefault()
     setFormError(null)
+
+    if (!clientId.trim()) {
+      setFormError('Client ID (App Key) is required for Browser OAuth. Please enter your App Key above, or paste a JWT token below.')
+      setShowAdvanced(true)
+      return
+    }
+
     loginWithOAuth({ serverUrl, clientId: clientId.trim() })
   }
 
@@ -82,15 +89,25 @@ export const Login: React.FC = () => {
           </div>
 
           <div>
-            <label className="text-xs font-medium text-[#a1a1aa] block mb-1">
-              Client ID / App Key <span className="text-zinc-600 font-normal">(Optional)</span>
-            </label>
+            <div className="flex items-center justify-between mb-1">
+              <label className="text-xs font-medium text-[#a1a1aa]">
+                Client ID / App Key <span className="text-blue-400 font-normal">(Required for OAuth)</span>
+              </label>
+              <a
+                href="https://developer.ringcentral.com/my-account.html#/applications"
+                target="_blank"
+                rel="noreferrer"
+                className="text-[10px] text-blue-400 hover:underline flex items-center gap-1"
+              >
+                <span>Get App Key</span> <ExternalLink className="w-2.5 h-2.5" />
+              </a>
+            </div>
             <input
               type="text"
               value={clientId}
               onChange={(e) => setClientId(e.target.value)}
-              placeholder="Leave blank for standard browser sign-in"
-              className="w-full bg-[#18181b] border border-[#27272a] rounded-xl px-3.5 py-2 text-xs text-white placeholder:text-zinc-600 focus:outline-none focus:border-blue-500"
+              placeholder="Paste your RingCentral App Key..."
+              className="w-full bg-[#18181b] border border-[#27272a] rounded-xl px-3.5 py-2.5 text-xs text-white placeholder:text-zinc-600 focus:outline-none focus:border-blue-500 font-mono"
             />
           </div>
 

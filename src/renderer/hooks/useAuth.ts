@@ -70,6 +70,9 @@ export function useAuth() {
           body: JSON.stringify(opts || {})
         })
         const data = await res.json()
+        if (!res.ok || !data.success) {
+          throw new Error(data.error || 'Failed to initialize RingCentral OAuth')
+        }
         if (data.authUrl) {
           window.open(data.authUrl, '_blank')
         }

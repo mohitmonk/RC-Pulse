@@ -22,12 +22,15 @@ export class RingCentralClient {
 
   public async exchangeCodeForToken(code: string, codeVerifier: string, redirectUri: string) {
     const url = `${this.config.serverUrl.replace(/\/$/, '')}/restapi/oauth/token`
-    const body = new URLSearchParams({
+    const params: Record<string, string> = {
       grant_type: 'authorization_code',
       code,
-      redirect_uri: redirectUri,
-      code_verifier: codeVerifier
-    })
+      redirect_uri: redirectUri
+    }
+    if (codeVerifier) {
+      params.code_verifier = codeVerifier
+    }
+    const body = new URLSearchParams(params)
 
     const response = await fetch(url, {
       method: 'POST',

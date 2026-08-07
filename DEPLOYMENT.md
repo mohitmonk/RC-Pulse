@@ -8,23 +8,32 @@ RC Pulse is structured into modular frontend and backend folders for easy multi-
 
 ```text
 rc-pulse/
-├── backend/
-│   ├── worker.ts         # Cloudflare Worker API entry point (Serverless API)
-│   ├── server.ts         # Express Node.js Backend Server (Docker / Cloud Run)
+├── frontend/             # Frontend React UI Source Code
+│   ├── index.html        # Standalone Frontend Entry Point
+│   └── src/
+│       ├── App.tsx       # Main Application Component
+│       ├── components/   # UI Components (KPI Cards, Charts, Call Tables)
+│       ├── hooks/        # React Query Custom Hooks (useAuth, useCalls, useDashboard)
+│       ├── layouts/      # Dashboard Layouts
+│       ├── pages/        # Application Pages (Login, Dashboard, Settings)
+│       ├── store/        # Zustand State Stores (authStore, dashboardStore)
+│       └── styles/       # Tailwind CSS Configuration
+├── backend/              # Backend Services & Worker APIs
+│   ├── worker.ts         # Cloudflare Worker API (Serverless API)
+│   ├── server.ts         # Express Node.js Backend Server
 │   └── wrangler.toml     # Cloudflare Worker deployment configuration
-├── functions/
-│   └── api/[[path]].ts   # Cloudflare Pages Functions routing
-├── src/
-│   ├── renderer/         # React Frontend UI (Dashboard, Auth, Analytics)
-│   ├── main/             # Shared Services (RingCentral REST API, Analytics)
-│   └── types/            # Shared TypeScript Interfaces & Types
+├── functions/            # Cloudflare Pages Functions
+│   └── api/[[path]].ts   # Functions Proxy Route
+├── src/                  # Core Shared Utilities & Legacy Bridge
+│   ├── main/             # RingCentral REST API Services & Analytics Engines
+│   └── types/            # Shared TypeScript Interfaces (Call, User, Settings)
 ├── .github/
 │   └── workflows/
 │       └── deploy.yml    # GitHub Actions Workflow for automated Cloudflare deployment
-├── DEPLOYMENT.md
-├── Dockerfile            # Multi-stage Dockerfile for Cloud Run / Container deployment
-├── package.json
-└── wrangler.toml         # Cloudflare Pages configuration
+├── DEPLOYMENT.md         # Deployment Guide
+├── Dockerfile            # Multi-stage Dockerfile
+├── package.json          # Project Dependencies & Scripts
+└── wrangler.toml         # Cloudflare Pages Configuration
 ```
 
 ---

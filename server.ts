@@ -166,10 +166,18 @@ async function startServer() {
     })
   })
 
+  let pendingOAuthState: {
+    clientId: string
+    clientSecret: string
+    serverUrl: string
+    redirectUri: string
+  } | null = null
+
   app.post('/api/auth/login', (req, res) => {
-    const { serverUrl, clientId } = req.body || {}
+    const { serverUrl, clientId, clientSecret, redirectUri: userRedirectUri } = req.body || {}
     const targetServer = serverUrl || process.env.RINGCENTRAL_SERVER_URL || 'https://platform.ringcentral.com'
-    const targetClientId = clientId || process.env.RINGCENTRAL_CLIENT_ID || ''
+    const targetClientId = clientId || process.env.RINGCENTRAL_CLIENT_ID || '8EYSDHink0fdsQ9W3c4fOj'
+    const targetClientSecret = clientSecret || process.env.RINGCENTRAL_CLIENT_SECRET || 'eJ1d3GrHSE2dmQQb33SKQF2YiCZgSp4bAd2DbaFBh4po'
 
     if (!targetClientId) {
       return res.status(400).json({
@@ -180,17 +188,34 @@ async function startServer() {
 
     const host = req.get('host') || 'localhost:3000'
     const protocol = req.protocol || 'http'
-    const redirectUri = `${protocol}://${host}/oauth/callback`
-    const authUrl = `${targetServer.replace(/\/$/, '')}/restapi/oauth/authorize?response_type=code&client_id=${encodeURIComponent(targetClientId)}&redirect_uri=${encodeURIComponent(redirectUri)}&state=rc_pulse_state`
+    const finalRedirectUri = (userRedirectUri && userRedirectUri.trim())
+      ? userRedirectUri.trim()
+      : `${protocol}://${host}/oauth/callback`
+
+    pendingOAuthState = {
+      clientId: targetClientId,
+      clientSecret: targetClientSecret,
+      serverUrl: targetServer,
+      redirectUri: finalRedirectUri
+    }
+
+    activeRcClient = new RingCentralClient({
+      clientId: targetClientId,
+      clientSecret: targetClientSecret,
+      serverUrl: targetServer
+    })
+
+    const authUrl = `${targetServer.replace(/\/$/, '')}/restapi/oauth/authorize?response_type=code&client_id=${encodeURIComponent(targetClientId)}&redirect_uri=${encodeURIComponent(finalRedirectUri)}&state=rc_pulse_state`
 
     res.json({
       success: true,
-      authUrl
+      authUrl,
+      redirectUri: finalRedirectUri
     })
   })
 
-  // RingCentral OAuth Callback handler
-  app.get('/oauth/callback', async (req, res) => {
+  // RingCentral OAuth Callback handler (handles both /oauth/callback and /callback)
+  const handleOAuthCallback = async (req: express.Request, res: express.Response) => {
     const code = req.query.code as string
     const error = req.query.error as string
     const errorDesc = req.query.error_description as string
@@ -199,10 +224,13 @@ async function startServer() {
       return res.status(400).send(`
         <html>
           <body style="background:#09090b;color:#f43f5e;font-family:sans-serif;display:flex;align-items:center;justify-content:center;height:100vh;margin:0;">
-            <div style="text-align:center;background:#18181b;padding:32px;border-radius:16px;border:1px solid #27272a;max-width:400px;">
+            <div style="text-align:center;background:#18181b;padding:32px;border-radius:16px;border:1px solid #27272a;max-width:440px;">
               <h2 style="margin-top:0;">Authentication Failed</h2>
-              <p style="font-size:14px;color:#a1a1aa;">${errorDesc || error || 'No authorization code received.'}</p>
-              <a href="/" style="color:#60a5fa;text-decoration:none;font-size:13px;display:inline-block;margin-top:16px;">&larr; Return to RC Pulse Login</a>
+              <p style="font-size:13px;color:#a1a1aa;line-height:1.6;">${errorDesc || error || 'No authorization code received.'}</p>
+              <div style="margin-top:16px;background:#09090b;padding:12px;border-radius:8px;border:1px solid #27272a;text-align:left;font-size:11px;color:#71717a;">
+                <strong style="color:#e4e4e7;">Redirect URI Tip:</strong> Ensure the Redirect URI configured in RingCentral App Console matches character-for-character with the URL specified (e.g. <code>http://localhost:47831/callback</code>).
+              </div>
+              <a href="/" style="color:#60a5fa;text-decoration:none;font-size:13px;display:inline-block;margin-top:20px;font-weight:600;">&larr; Return to RC Pulse Login</a>
             </div>
           </body>
         </html>
@@ -212,12 +240,30 @@ async function startServer() {
     try {
       const host = req.get('host') || 'localhost:3000'
       const protocol = req.protocol || 'http'
-      const redirectUri = `${protocol}://${host}/oauth/callback`
+      const redirectUri = pendingOAuthState?.redirectUri || `${protocol}://${host}/oauth/callback`
 
-      if (activeRcClient) {
-        await activeRcClient.exchangeCodeForToken(code, '', redirectUri)
-        isDemoActive = false
-      }
+      const clientToUse = activeRcClient || (pendingOAuthState ? new RingCentralClient(pendingOAuthState) : new RingCentralClient({
+        clientId: process.env.RINGCENTRAL_CLIENT_ID || '8EYSDHink0fdsQ9W3c4fOj',
+        clientSecret: process.env.RINGCENTRAL_CLIENT_SECRET || 'eJ1d3GrHSE2dmQQb33SKQF2YiCZgSp4bAd2DbaFBh4po',
+        serverUrl: 'https://platform.ringcentral.com'
+      }))
+
+      const tokens = await clientToUse.exchangeCodeForToken(code, '', redirectUri)
+
+      await TokenStore.saveTokens({
+        accessToken: tokens.accessToken,
+        refreshToken: tokens.refreshToken,
+        expiresAt: tokens.expiresAt,
+        tokenType: tokens.tokenType || 'Bearer',
+        scope: tokens.scope || '',
+        serverUrl: pendingOAuthState?.serverUrl || 'https://platform.ringcentral.com',
+        clientId: pendingOAuthState?.clientId || '8EYSDHink0fdsQ9W3c4fOj',
+        clientSecret: pendingOAuthState?.clientSecret || 'eJ1d3GrHSE2dmQQb33SKQF2YiCZgSp4bAd2DbaFBh4po',
+        isDemoMode: false
+      })
+
+      activeRcClient = clientToUse
+      isDemoActive = false
 
       res.send(`
         <html>
@@ -228,7 +274,7 @@ async function startServer() {
               <script>
                 setTimeout(function() {
                   window.location.href = '/';
-                }, 1500);
+                }, 1200);
               </script>
             </div>
           </body>
@@ -238,16 +284,22 @@ async function startServer() {
       res.status(500).send(`
         <html>
           <body style="background:#09090b;color:#f43f5e;font-family:sans-serif;display:flex;align-items:center;justify-content:center;height:100vh;margin:0;">
-            <div style="text-align:center;background:#18181b;padding:32px;border-radius:16px;border:1px solid #27272a;max-width:400px;">
+            <div style="text-align:center;background:#18181b;padding:32px;border-radius:16px;border:1px solid #27272a;max-width:440px;">
               <h2 style="margin-top:0;">Token Exchange Failed</h2>
-              <p style="font-size:14px;color:#a1a1aa;">${err.message}</p>
-              <a href="/" style="color:#60a5fa;text-decoration:none;font-size:13px;display:inline-block;margin-top:16px;">&larr; Return to RC Pulse Login</a>
+              <p style="font-size:13px;color:#a1a1aa;line-height:1.5;">${err.message}</p>
+              <div style="margin-top:16px;background:#09090b;padding:12px;border-radius:8px;border:1px solid #27272a;text-align:left;font-size:11px;color:#71717a;">
+                <strong style="color:#e4e4e7;">Redirect URI mismatch?</strong> Check that the <strong>OAuth Redirect URI</strong> in your RingCentral App Console matches character-for-character with the URL being sent.
+              </div>
+              <a href="/" style="color:#60a5fa;text-decoration:none;font-size:13px;display:inline-block;margin-top:20px;font-weight:600;">&larr; Return to RC Pulse Login</a>
             </div>
           </body>
         </html>
       `)
     }
-  })
+  }
+
+  app.get('/oauth/callback', handleOAuthCallback)
+  app.get('/callback', handleOAuthCallback)
 
   app.post('/api/auth/logout', async (req, res) => {
     activeRcClient = null

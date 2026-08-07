@@ -56,7 +56,7 @@ export function useAuth() {
     }
   }
 
-  const loginWithOAuth = async (opts?: { serverUrl?: string; clientId?: string }) => {
+  const loginWithOAuth = async (opts?: { serverUrl?: string; clientId?: string; clientSecret?: string; redirectUri?: string }) => {
     try {
       useAuthStore.getState().setLoading(true)
       useAuthStore.getState().setError(null)

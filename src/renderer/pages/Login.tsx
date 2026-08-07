@@ -7,12 +7,22 @@ export const Login: React.FC = () => {
 
   // Real Account Credentials state
   const [serverUrl, setServerUrl] = useState('https://platform.ringcentral.com')
-  const [clientId, setClientId] = useState('')
-  const [clientSecret, setClientSecret] = useState('')
+  const [clientId, setClientId] = useState('8EYSDHink0fdsQ9W3c4fOj')
+  const [clientSecret, setClientSecret] = useState('eJ1d3GrHSE2dmQQb33SKQF2YiCZgSp4bAd2DbaFBh4po')
+  const [redirectUri, setRedirectUri] = useState('http://localhost:47831/callback')
+  const [copiedUri, setCopiedUri] = useState(false)
   const [jwtToken, setJwtToken] = useState('')
   const [accessToken, setAccessToken] = useState('')
   const [showAdvanced, setShowAdvanced] = useState(false)
   const [formError, setFormError] = useState<string | null>(null)
+
+  const handleCopyUri = () => {
+    if (navigator.clipboard) {
+      navigator.clipboard.writeText(redirectUri)
+      setCopiedUri(true)
+      setTimeout(() => setCopiedUri(false), 2000)
+    }
+  }
 
   const handleBrowserLogin = (e: React.FormEvent) => {
     e.preventDefault()
@@ -24,7 +34,12 @@ export const Login: React.FC = () => {
       return
     }
 
-    loginWithOAuth({ serverUrl, clientId: clientId.trim() })
+    loginWithOAuth({
+      serverUrl,
+      clientId: clientId.trim(),
+      clientSecret: clientSecret.trim(),
+      redirectUri: redirectUri.trim()
+    })
   }
 
   const handleTokenLogin = async (e: React.FormEvent) => {
@@ -88,27 +103,69 @@ export const Login: React.FC = () => {
             </select>
           </div>
 
+          <div className="grid grid-cols-2 gap-3">
+            <div>
+              <div className="flex items-center justify-between mb-1">
+                <label className="text-xs font-medium text-[#a1a1aa]">
+                  Client ID / App Key
+                </label>
+              </div>
+              <input
+                type="text"
+                value={clientId}
+                onChange={(e) => setClientId(e.target.value)}
+                placeholder="App Key"
+                className="w-full bg-[#18181b] border border-[#27272a] rounded-xl px-3 py-2 text-xs text-white placeholder:text-zinc-600 focus:outline-none focus:border-blue-500 font-mono"
+              />
+            </div>
+            <div>
+              <div className="flex items-center justify-between mb-1">
+                <label className="text-xs font-medium text-[#a1a1aa]">
+                  Client Secret
+                </label>
+              </div>
+              <input
+                type="password"
+                value={clientSecret}
+                onChange={(e) => setClientSecret(e.target.value)}
+                placeholder="App Secret"
+                className="w-full bg-[#18181b] border border-[#27272a] rounded-xl px-3 py-2 text-xs text-white placeholder:text-zinc-600 focus:outline-none focus:border-blue-500 font-mono"
+              />
+            </div>
+          </div>
+
           <div>
             <div className="flex items-center justify-between mb-1">
-              <label className="text-xs font-medium text-[#a1a1aa]">
-                Client ID / App Key <span className="text-blue-400 font-normal">(Required for OAuth)</span>
+              <label className="text-xs font-medium text-[#a1a1aa] flex items-center gap-1">
+                <span>OAuth Redirect URI</span>
               </label>
-              <a
-                href="https://developer.ringcentral.com/my-account.html#/applications"
-                target="_blank"
-                rel="noreferrer"
-                className="text-[10px] text-blue-400 hover:underline flex items-center gap-1"
-              >
-                <span>Get App Key</span> <ExternalLink className="w-2.5 h-2.5" />
-              </a>
+              <div className="flex items-center gap-2">
+                <button
+                  type="button"
+                  onClick={() => setRedirectUri('http://localhost:47831/callback')}
+                  className="text-[10px] text-zinc-400 hover:text-white underline cursor-pointer"
+                >
+                  Local (47831)
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setRedirectUri(`${window.location.origin}/oauth/callback`)}
+                  className="text-[10px] text-blue-400 hover:underline cursor-pointer"
+                >
+                  App Origin
+                </button>
+              </div>
             </div>
             <input
               type="text"
-              value={clientId}
-              onChange={(e) => setClientId(e.target.value)}
-              placeholder="Paste your RingCentral App Key..."
-              className="w-full bg-[#18181b] border border-[#27272a] rounded-xl px-3.5 py-2.5 text-xs text-white placeholder:text-zinc-600 focus:outline-none focus:border-blue-500 font-mono"
+              value={redirectUri}
+              onChange={(e) => setRedirectUri(e.target.value)}
+              placeholder="e.g. http://localhost:47831/callback"
+              className="w-full bg-[#18181b] border border-[#27272a] rounded-xl px-3.5 py-2 text-xs text-white/90 placeholder:text-zinc-600 focus:outline-none focus:border-blue-500 font-mono text-[11px]"
             />
+            <p className="text-[10px] text-[#71717a] mt-1.5 leading-normal">
+              📌 RingCentral registered URI: <code className="text-blue-400 font-mono">http://localhost:47831/callback</code>
+            </p>
           </div>
 
           {/* Hero Action Button: Sign in via Browser */}

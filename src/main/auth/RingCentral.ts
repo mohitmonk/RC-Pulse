@@ -27,6 +27,9 @@ export class RingCentralClient {
       code,
       redirect_uri: redirectUri
     }
+    if (this.config.clientId) {
+      params.client_id = this.config.clientId
+    }
     if (codeVerifier) {
       params.code_verifier = codeVerifier
     }

@@ -27,12 +27,12 @@ async function startServer() {
   let activeRcClient: RingCentralClient | null = null
 
   async function getActiveClient(): Promise<RingCentralClient | null> {
-    if (activeRcClient) {
-      return activeRcClient
+    const tokens = await TokenStore.getTokens()
+    if (!tokens || !tokens.accessToken) {
+      return null
     }
 
-    const tokens = await TokenStore.getTokens()
-    if (tokens && tokens.accessToken) {
+    if (!activeRcClient) {
       const serverUrl = tokens.serverUrl || process.env.RINGCENTRAL_SERVER_URL || 'https://platform.ringcentral.com'
       const clientId = tokens.clientId || process.env.RINGCENTRAL_CLIENT_ID || ''
       const clientSecret = tokens.clientSecret || process.env.RINGCENTRAL_CLIENT_SECRET || ''
@@ -43,10 +43,9 @@ async function startServer() {
         serverUrl
       })
       console.log('[RC Pulse] Auto-restored active RingCentral client session from TokenStore.')
-      return activeRcClient
     }
 
-    return null
+    return activeRcClient
   }
 
   // User Profile
